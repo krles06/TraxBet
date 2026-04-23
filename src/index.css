@@ -108,6 +108,7 @@ input, button, select {
 .badge-verde { background: rgba(0,200,83,0.15); color: var(--verde); }
 .badge-rojo { background: rgba(255,61,61,0.15); color: var(--rojo); }
 .badge-amarillo { background: rgba(255,214,0,0.15); color: var(--amarillo); }
+.badge-azul { background: rgba(0,100,255,0.15); color: #4d9fff; }
 .badge-gris { background: rgba(255,255,255,0.08); color: var(--text2); }
 
 @media (max-width: 640px) {

@@ -23,7 +23,7 @@ export default function Dashboard() {
       .eq('estado', 'abierta')
       .order('created_at', { ascending: false })
       .limit(1)
-      .single()
+      .maybeSingle()
     setSemana(sem)
 
     if (sem) {
