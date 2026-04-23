@@ -72,6 +72,15 @@ export default function Dashboard() {
   const partidosCount = partidos.length
   const todosPredecidos = miPredCount >= partidosCount && partidosCount > 0
 
+  const programados = partidos.filter(p => p.estado === 'programado')
+  const primerPartido = programados.length > 0
+    ? programados.reduce((min, p) => new Date(p.fecha_partido) < new Date(min.fecha_partido) ? p : min)
+    : null
+  const deadline = primerPartido
+    ? new Date(new Date(primerPartido.fecha_partido).getTime() - 3 * 60 * 60 * 1000)
+    : null
+  const plazoVencido = deadline ? new Date() >= deadline : programados.length === 0 && partidosCount > 0
+
   return (
     <div style={{ maxWidth: '480px', margin: '0 auto', padding: '24px 16px' }}>
       {/* Header */}
@@ -151,7 +160,19 @@ export default function Dashboard() {
             )
           })}
 
-          {!todosPredecidos && partidosCount > 0 && (
+          {/* Plazo */}
+          {deadline && !plazoVencido && (
+            <p style={{ fontSize: '12px', color: 'var(--amarillo)', marginTop: '12px', textAlign: 'center' }}>
+              ⏰ Cierra el {format(deadline, "EEE d MMM 'a las' HH:mm", { locale: es })}
+            </p>
+          )}
+          {plazoVencido && programados.length > 0 && (
+            <p style={{ fontSize: '12px', color: 'var(--rojo)', marginTop: '12px', textAlign: 'center' }}>
+              🔒 Plazo cerrado
+            </p>
+          )}
+
+          {!todosPredecidos && partidosCount > 0 && !plazoVencido && (
             <Link to="/predicciones">
               <button className="btn btn-primary" style={{ width: '100%', marginTop: '16px' }}>
                 ✏️ Poner mis predicciones

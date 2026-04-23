@@ -92,9 +92,16 @@ export default function Predicciones() {
     setSaving(false)
   }
 
-  const partidoAbierto = (p) => {
-    return new Date(p.fecha_partido) > new Date() && p.estado === 'programado'
-  }
+  const programados = partidos.filter(p => p.estado === 'programado')
+  const primerPartido = programados.length > 0
+    ? programados.reduce((min, p) => new Date(p.fecha_partido) < new Date(min.fecha_partido) ? p : min)
+    : null
+  const deadline = primerPartido
+    ? new Date(new Date(primerPartido.fecha_partido).getTime() - 3 * 60 * 60 * 1000)
+    : null
+  const plazoVencido = deadline ? new Date() >= deadline : partidos.length > 0
+
+  const partidoAbierto = (p) => !plazoVencido && p.estado === 'programado'
 
   if (loading) return null
 
@@ -102,9 +109,41 @@ export default function Predicciones() {
     <div style={{ maxWidth: '480px', margin: '0 auto', padding: '24px 16px' }}>
       <h1 style={{ fontSize: '22px', fontWeight: '700', marginBottom: '8px' }}>✏️ Mis predicciones</h1>
       {semana && (
-        <p style={{ color: 'var(--text2)', marginBottom: '28px', fontSize: '14px' }}>
+        <p style={{ color: 'var(--text2)', marginBottom: '16px', fontSize: '14px' }}>
           Semana {semana.numero} · Bote: <strong style={{ color: 'var(--verde)' }}>{semana.bote_euros}€</strong>
         </p>
+      )}
+
+      {/* Banner de plazo */}
+      {deadline && !plazoVencido && (
+        <div style={{
+          background: 'rgba(255,214,0,0.08)', border: '1px solid rgba(255,214,0,0.2)',
+          borderRadius: '10px', padding: '12px 16px', marginBottom: '20px',
+          display: 'flex', alignItems: 'center', gap: '10px'
+        }}>
+          <span style={{ fontSize: '18px' }}>⏰</span>
+          <div>
+            <p style={{ fontSize: '13px', fontWeight: '600', color: 'var(--amarillo)' }}>Plazo de predicciones</p>
+            <p style={{ fontSize: '12px', color: 'var(--text2)', marginTop: '2px' }}>
+              Cierra el {format(deadline, "EEEE d MMM 'a las' HH:mm", { locale: es })}
+            </p>
+          </div>
+        </div>
+      )}
+      {deadline && plazoVencido && programados.length > 0 && (
+        <div style={{
+          background: 'rgba(255,61,61,0.08)', border: '1px solid rgba(255,61,61,0.2)',
+          borderRadius: '10px', padding: '12px 16px', marginBottom: '20px',
+          display: 'flex', alignItems: 'center', gap: '10px'
+        }}>
+          <span style={{ fontSize: '18px' }}>🔒</span>
+          <div>
+            <p style={{ fontSize: '13px', fontWeight: '600', color: 'var(--rojo)' }}>Plazo cerrado</p>
+            <p style={{ fontSize: '12px', color: 'var(--text2)', marginTop: '2px' }}>
+              El plazo venció el {format(deadline, "d MMM 'a las' HH:mm", { locale: es })}
+            </p>
+          </div>
+        </div>
       )}
 
       {!semana && (
