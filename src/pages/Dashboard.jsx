@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth.jsx'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
+import { Wallet, Trophy, Clock, Lock, Check, X, PenLine } from 'lucide-react'
 
 export default function Dashboard() {
   const { profile } = useAuth()
@@ -15,22 +16,16 @@ export default function Dashboard() {
 
   useEffect(() => { loadDashboard() }, [profile])
 
-  // Actualización en tiempo real cuando cambia un partido
   useEffect(() => {
     const channel = supabase
       .channel('dashboard-partidos')
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'partidos' }, () => {
-        loadDashboard()
-      })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'semanas' }, () => {
-        loadDashboard()
-      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'partidos' }, () => loadDashboard())
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'semanas' }, () => loadDashboard())
       .subscribe()
     return () => supabase.removeChannel(channel)
   }, [])
 
   async function loadDashboard() {
-    // Semana activa
     const { data: sem } = await supabase
       .from('semanas')
       .select('*')
@@ -41,7 +36,6 @@ export default function Dashboard() {
     setSemana(sem)
 
     if (sem) {
-      // Partidos de la semana
       const { data: parts } = await supabase
         .from('partidos')
         .select('*')
@@ -49,7 +43,6 @@ export default function Dashboard() {
         .order('fecha_partido')
       setPartidos(parts || [])
 
-      // Mis predicciones
       if (profile) {
         const { data: preds } = await supabase
           .from('predicciones')
@@ -59,7 +52,6 @@ export default function Dashboard() {
         setMisPredicciones(preds || [])
       }
 
-      // Ranking histórico (aciertos)
       const { data: rank } = await supabase
         .from('predicciones')
         .select('user_id, profiles(username), es_correcto')
@@ -96,13 +88,13 @@ export default function Dashboard() {
   const plazoVencido = deadline ? new Date() >= deadline : programados.length === 0 && partidosCount > 0
 
   return (
-    <div style={{ maxWidth: '480px', margin: '0 auto', padding: '24px 16px' }}>
+    <div style={{ maxWidth: '480px', margin: '0 auto', padding: '24px 16px 100px' }}>
       {/* Header */}
       <div style={{ marginBottom: '28px' }}>
-        <h1 style={{ fontSize: '22px', fontWeight: '700' }}>
-          Hola, {profile?.username} 👋
+        <h1 style={{ fontSize: '22px', fontWeight: '700', letterSpacing: '-0.02em' }}>
+          Hola, {profile?.username}
         </h1>
-        <p style={{ color: 'var(--text2)', marginTop: '4px' }}>
+        <p style={{ color: 'var(--text2)', marginTop: '4px', fontSize: '14px' }}>
           {semana ? `Semana ${semana.numero} en juego` : 'Esperando nueva semana'}
         </p>
       </div>
@@ -113,62 +105,69 @@ export default function Dashboard() {
           background: 'linear-gradient(135deg, #0f2a1a, #1a3a28)',
           border: '1px solid rgba(0,200,83,0.2)',
           marginBottom: '16px',
-          textAlign: 'center'
+          textAlign: 'center',
         }}>
-          <p style={{ color: 'var(--verde)', fontSize: '12px', fontWeight: '700', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '8px' }}>
-            💰 Bote acumulado
-          </p>
-          <p style={{ fontSize: '48px', fontWeight: '700', fontFamily: 'var(--mono)', color: '#fff' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', marginBottom: '8px' }}>
+            <Wallet size={13} color="var(--verde)" />
+            <p style={{ color: 'var(--verde)', fontSize: '12px', fontWeight: '700', letterSpacing: '1px', textTransform: 'uppercase' }}>
+              Bote acumulado
+            </p>
+          </div>
+          <p style={{ fontSize: '52px', fontWeight: '700', fontFamily: 'var(--mono)', color: '#fff', lineHeight: 1 }}>
             {semana.bote_euros}€
           </p>
-          <p style={{ color: 'var(--text2)', fontSize: '13px', marginTop: '8px' }}>
+          <p style={{ color: 'var(--text2)', fontSize: '13px', marginTop: '10px' }}>
             Semana {semana.numero} · {partidosCount} partido{partidosCount !== 1 ? 's' : ''}
           </p>
         </div>
       )}
 
-      {/* Estado de mis predicciones */}
+      {/* Mis predicciones */}
       {semana && (
         <div className="card" style={{ marginBottom: '16px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
             <h3 style={{ fontSize: '15px', fontWeight: '600' }}>Mis predicciones</h3>
-            <span style={{ fontSize: '13px', color: todosPredecidos ? 'var(--verde)' : 'var(--amarillo)' }}>
-              {miPredCount}/{partidosCount} hechas
+            <span style={{ fontSize: '13px', color: todosPredecidos ? 'var(--verde)' : 'var(--amarillo)', fontWeight: '600' }}>
+              {miPredCount}/{partidosCount}
             </span>
           </div>
 
           {partidos.length === 0 ? (
             <p style={{ color: 'var(--text2)', fontSize: '14px' }}>Cargando partidos...</p>
-          ) : partidos.map(partido => {
+          ) : partidos.map((partido, i) => {
             const pred = misPredicciones.find(p => p.partido_id === partido.id)
             const fechaStr = format(new Date(partido.fecha_partido), "EEE d MMM, HH:mm", { locale: es })
 
             return (
               <div key={partido.id} style={{
-                padding: '12px 0', borderBottom: '1px solid var(--border)',
-                display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+                padding: '12px 0',
+                borderBottom: i < partidos.length - 1 ? '1px solid var(--border)' : 'none',
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
               }}>
                 <div>
                   <p style={{ fontSize: '14px', fontWeight: '600', marginBottom: '3px' }}>
-                    {partido.es_barca ? '🔵🔴' : '⚪'} {partido.equipo_local} vs {partido.equipo_visitante}
+                    {partido.equipo_local} vs {partido.equipo_visitante}
                   </p>
                   <p style={{ fontSize: '12px', color: 'var(--text2)' }}>{fechaStr}</p>
                 </div>
                 {pred ? (
                   <div style={{ textAlign: 'right' }}>
                     <span style={{ fontFamily: 'var(--mono)', fontSize: '18px', fontWeight: '700', color: 'var(--verde)' }}>
-                      {pred.goles_local_prediccion} - {pred.goles_visitante_prediccion}
+                      {pred.goles_local_prediccion} – {pred.goles_visitante_prediccion}
                     </span>
                     {pred.es_correcto !== null && (
-                      <div style={{ marginTop: '2px' }}>
-                        <span className={`badge badge-${pred.es_correcto ? 'verde' : 'rojo'}`}>
-                          {pred.es_correcto ? '✓ Acertado' : '✗ Fallado'}
+                      <div style={{ marginTop: '4px' }}>
+                        <span className={`badge badge-${pred.es_correcto ? 'verde' : 'rojo'}`}
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                          {pred.es_correcto
+                            ? <><Check size={10} strokeWidth={3} /> Acertado</>
+                            : <><X size={10} strokeWidth={3} /> Fallado</>}
                         </span>
                       </div>
                     )}
                   </div>
                 ) : (
-                  <span className="badge badge-amarillo">Sin predicción</span>
+                  <span className="badge badge-amarillo">Sin pred.</span>
                 )}
               </div>
             )
@@ -176,20 +175,25 @@ export default function Dashboard() {
 
           {/* Plazo */}
           {deadline && !plazoVencido && (
-            <p style={{ fontSize: '12px', color: 'var(--amarillo)', marginTop: '12px', textAlign: 'center' }}>
-              ⏰ Cierra el {format(deadline, "EEE d MMM 'a las' HH:mm", { locale: es })}
-            </p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '14px', justifyContent: 'center' }}>
+              <Clock size={13} color="var(--amarillo)" />
+              <p style={{ fontSize: '12px', color: 'var(--amarillo)' }}>
+                Cierra el {format(deadline, "EEE d MMM 'a las' HH:mm", { locale: es })}
+              </p>
+            </div>
           )}
           {plazoVencido && programados.length > 0 && (
-            <p style={{ fontSize: '12px', color: 'var(--rojo)', marginTop: '12px', textAlign: 'center' }}>
-              🔒 Plazo cerrado
-            </p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '14px', justifyContent: 'center' }}>
+              <Lock size={13} color="var(--rojo)" />
+              <p style={{ fontSize: '12px', color: 'var(--rojo)' }}>Plazo cerrado</p>
+            </div>
           )}
 
           {!todosPredecidos && partidosCount > 0 && !plazoVencido && (
-            <Link to="/predicciones">
-              <button className="btn btn-primary" style={{ width: '100%', marginTop: '16px' }}>
-                ✏️ Poner mis predicciones
+            <Link to="/predicciones" style={{ display: 'block', marginTop: '16px' }}>
+              <button className="btn btn-primary" style={{ width: '100%' }}>
+                <PenLine size={15} />
+                <span>Poner mis predicciones</span>
               </button>
             </Link>
           )}
@@ -199,24 +203,28 @@ export default function Dashboard() {
       {/* Ranking */}
       {ranking.length > 0 && (
         <div className="card">
-          <h3 style={{ fontSize: '15px', fontWeight: '600', marginBottom: '16px' }}>🏆 Ranking total</h3>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+            <Trophy size={16} color="var(--amarillo)" />
+            <h3 style={{ fontSize: '15px', fontWeight: '600' }}>Ranking total</h3>
+          </div>
           {ranking.map((r, i) => (
             <div key={r.username} style={{
               display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-              padding: '10px 0', borderBottom: i < ranking.length - 1 ? '1px solid var(--border)' : 'none'
+              padding: '10px 0',
+              borderBottom: i < ranking.length - 1 ? '1px solid var(--border)' : 'none',
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                 <span style={{
-                  width: '28px', height: '28px', borderRadius: '50%',
-                  background: i === 0 ? 'var(--amarillo)' : i === 1 ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.08)',
+                  width: '28px', height: '28px', borderRadius: '50%', flexShrink: 0,
+                  background: i === 0 ? 'var(--amarillo)' : i === 1 ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.07)',
                   color: i === 0 ? '#000' : 'var(--text)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: '13px', fontWeight: '700'
+                  fontSize: '12px', fontWeight: '700',
                 }}>
                   {i + 1}
                 </span>
                 <span style={{ fontSize: '15px', fontWeight: profile?.username === r.username ? '700' : '400' }}>
-                  {r.username} {profile?.username === r.username ? '(tú)' : ''}
+                  {r.username}{profile?.username === r.username ? ' (tú)' : ''}
                 </span>
               </div>
               <div style={{ textAlign: 'right' }}>
@@ -227,6 +235,20 @@ export default function Dashboard() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {!semana && !loading && (
+        <div className="card" style={{ textAlign: 'center', padding: '48px 24px' }}>
+          <div style={{
+            width: '48px', height: '48px', borderRadius: '50%',
+            background: 'var(--bg4)', display: 'flex', alignItems: 'center',
+            justifyContent: 'center', margin: '0 auto 16px',
+          }}>
+            <Clock size={22} color="var(--text3)" />
+          </div>
+          <p style={{ fontWeight: '600', marginBottom: '6px' }}>Sin semana activa</p>
+          <p style={{ color: 'var(--text2)', fontSize: '13px' }}>El administrador creará una nueva semana pronto</p>
         </div>
       )}
     </div>

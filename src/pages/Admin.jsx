@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth.jsx'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
+import { Settings, Plus, RefreshCw, Lock, Check, AlertCircle, AlertTriangle, Wallet } from 'lucide-react'
 
 const FOOTBALL_API_KEY = import.meta.env.VITE_FOOTBALL_API_KEY
 const BARCA_ID = 81
@@ -12,7 +13,6 @@ const IS_DEV = import.meta.env.DEV
 async function footballFetch(type) {
   let data
   if (IS_DEV) {
-    // En desarrollo localhost está en el allowlist de CORS de football-data.org
     const today = new Date()
     let url
     if (type === 'upcoming') {
@@ -25,7 +25,6 @@ async function footballFetch(type) {
     if (!res.ok) throw new Error(`API error ${res.status}`)
     data = await res.json()
   } else {
-    // En producción usamos el proxy serverless de Vercel para evitar CORS
     const res = await fetch(`/api/football?type=${type}`)
     if (!res.ok) throw new Error(`Proxy error ${res.status}`)
     data = await res.json()
@@ -36,14 +35,8 @@ async function footballFetch(type) {
   )
 }
 
-async function fetchUpcomingMatches() {
-  return footballFetch('upcoming')
-}
-
-async function fetchFinishedMatches() {
-  return footballFetch('finished')
-}
-
+async function fetchUpcomingMatches() { return footballFetch('upcoming') }
+async function fetchFinishedMatches() { return footballFetch('finished') }
 
 export default function Admin() {
   const { profile } = useAuth()
@@ -91,12 +84,11 @@ export default function Admin() {
     try {
       const allMatches = await fetchUpcomingMatches()
       if (allMatches.length === 0) {
-        showMsg('No hay partidos de Barça/Madrid programados en los próximos 21 días', 'warn')
+        showMsg('No hay partidos de Barça/Madrid en los próximos 21 días', 'warn')
         setWorking(false)
         return
       }
 
-      // Solo la jornada más próxima (menor número de jornada entre los resultados)
       const jornadaMinima = Math.min(...allMatches.map(m => m.matchday).filter(Boolean))
       const matches = jornadaMinima
         ? allMatches.filter(m => m.matchday === jornadaMinima)
@@ -140,7 +132,7 @@ export default function Admin() {
       }
 
       const jornada = matches[0]?.matchday ? ` (jornada ${matches[0].matchday})` : ''
-      showMsg(`✅ Semana ${nextNumero} creada con ${matches.length} partido(s)${jornada}`)
+      showMsg(`Semana ${nextNumero} creada con ${matches.length} partido(s)${jornada}`)
       await loadData()
     } catch (e) {
       showMsg('Error de API: ' + e.message, 'err')
@@ -168,10 +160,7 @@ export default function Admin() {
         updated++
       }
 
-      // Si todos los partidos de la semana han terminado, calcular ganadores
       if (semana && updated > 0) {
-        const { data: allParts } = await supabase
-          .from('partidos').select('estado').eq('semana_id', semana.id)
         const reloadedParts = await supabase
           .from('partidos').select('estado').eq('semana_id', semana.id)
         const todosFin = (reloadedParts.data || []).every(p => p.estado === 'finalizado')
@@ -180,18 +169,18 @@ export default function Admin() {
           const { data: ganadores } = await supabase.rpc('verificar_ganadores', { p_semana_id: semana.id })
           if (ganadores && ganadores.length > 0) {
             await supabase.from('semanas').update({ estado: 'resuelta', ganador_id: ganadores[0].ganador_id }).eq('id', semana.id)
-            showMsg(`✅ ${updated} partido(s) actualizado(s). ¡Ganador: ${ganadores[0].username}!`)
+            showMsg(`${updated} partido(s) actualizado(s). ¡Ganador: ${ganadores[0].username}!`)
           } else {
             await supabase.from('semanas').update({ estado: 'resuelta' }).eq('id', semana.id)
-            showMsg(`✅ ${updated} partido(s) actualizado(s). Nadie acertó — el bote se acumula.`)
+            showMsg(`${updated} partido(s) actualizado(s). Nadie acertó — bote acumulado.`)
           }
         } else {
-          showMsg(`✅ ${updated} partido(s) actualizado(s)`)
+          showMsg(`${updated} partido(s) actualizado(s)`)
         }
       } else if (updated === 0) {
         showMsg('No hay resultados nuevos', 'warn')
       } else {
-        showMsg(`✅ ${updated} partido(s) actualizado(s)`)
+        showMsg(`${updated} partido(s) actualizado(s)`)
       }
 
       await loadData()
@@ -207,7 +196,7 @@ export default function Admin() {
     const { error } = await supabase
       .from('semanas').update({ bote_euros: parseFloat(boteInput) || 0 }).eq('id', semana.id)
     if (error) showMsg('Error: ' + error.message, 'err')
-    else showMsg('✅ Bote actualizado')
+    else showMsg('Bote actualizado')
     await loadData()
     setWorking(false)
   }
@@ -216,31 +205,42 @@ export default function Admin() {
     if (!semana) return
     setWorking(true)
     await supabase.from('semanas').update({ estado: 'cerrada' }).eq('id', semana.id)
-    showMsg('🔒 Semana cerrada — ya no se aceptan predicciones')
+    showMsg('Semana cerrada — ya no se aceptan predicciones')
     await loadData()
     setWorking(false)
   }
 
   if (!profile?.is_admin) return (
     <div style={{ maxWidth: '480px', margin: '0 auto', padding: '80px 16px', textAlign: 'center' }}>
-      <p style={{ fontSize: '40px', marginBottom: '12px' }}>🔒</p>
-      <p style={{ color: 'var(--text2)' }}>Solo administradores</p>
+      <div style={{
+        width: '56px', height: '56px', borderRadius: '50%',
+        background: 'var(--bg3)', display: 'flex', alignItems: 'center',
+        justifyContent: 'center', margin: '0 auto 16px',
+      }}>
+        <Lock size={24} color="var(--text3)" />
+      </div>
+      <p style={{ fontWeight: '600', marginBottom: '6px' }}>Acceso restringido</p>
+      <p style={{ color: 'var(--text2)', fontSize: '13px' }}>Solo administradores</p>
     </div>
   )
 
   if (loading) return null
 
-  const msgColor = msg.type === 'err' ? 'var(--rojo)' : msg.type === 'warn' ? 'var(--amarillo)' : 'var(--verde)'
-  const msgBg = msg.type === 'err' ? 'rgba(255,61,61,0.1)' : msg.type === 'warn' ? 'rgba(255,214,0,0.1)' : 'rgba(0,200,83,0.1)'
+  const msgClass = msg.type === 'err' ? 'alert-error' : msg.type === 'warn' ? 'alert-warn' : 'alert-success'
+  const MsgIcon = msg.type === 'err' ? AlertCircle : msg.type === 'warn' ? AlertTriangle : Check
 
   return (
-    <div style={{ maxWidth: '480px', margin: '0 auto', padding: '24px 16px' }}>
-      <h1 style={{ fontSize: '22px', fontWeight: '700', marginBottom: '8px' }}>⚙️ Admin</h1>
+    <div style={{ maxWidth: '480px', margin: '0 auto', padding: '24px 16px 100px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+        <Settings size={18} color="var(--text2)" />
+        <h1 style={{ fontSize: '22px', fontWeight: '700', letterSpacing: '-0.02em' }}>Admin</h1>
+      </div>
       <p style={{ color: 'var(--text2)', fontSize: '13px', marginBottom: '24px' }}>Panel de administración de la porra</p>
 
       {msg.text && (
-        <div style={{ padding: '12px 16px', borderRadius: '8px', marginBottom: '16px', background: msgBg, color: msgColor, fontSize: '14px' }}>
-          {msg.text}
+        <div className={`alert ${msgClass}`} style={{ marginBottom: '16px' }}>
+          <MsgIcon size={15} style={{ flexShrink: 0, marginTop: '1px' }} />
+          <span>{msg.text}</span>
         </div>
       )}
 
@@ -249,15 +249,23 @@ export default function Admin() {
         <div className="card" style={{ marginBottom: '16px' }}>
           <h3 style={{ fontSize: '15px', fontWeight: '600', marginBottom: '8px' }}>Nueva semana</h3>
           <p style={{ fontSize: '13px', color: 'var(--text2)', marginBottom: '16px' }}>
-            Se cargarán automáticamente los próximos partidos de Barça y Madrid (21 días).
+            Se cargarán los próximos partidos de Barça y Madrid (próximos 21 días).
           </p>
           <div style={{ marginBottom: '16px' }}>
-            <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', color: 'var(--text2)' }}>Bote inicial (€)</label>
-            <input className="input" type="number" value={boteInput}
-              onChange={e => setBoteInput(e.target.value)} min="0" step="1" />
+            <label className="label">Bote inicial (€)</label>
+            <div style={{ position: 'relative' }}>
+              <Wallet size={15} style={{
+                position: 'absolute', left: '13px', top: '50%', transform: 'translateY(-50%)',
+                color: 'var(--text3)', pointerEvents: 'none',
+              }} />
+              <input className="input" type="number" value={boteInput}
+                onChange={e => setBoteInput(e.target.value)} min="0" step="1"
+                style={{ paddingLeft: '36px' }} />
+            </div>
           </div>
           <button className="btn btn-primary" style={{ width: '100%' }} onClick={crearSemana} disabled={working}>
-            {working ? 'Cargando partidos...' : '➕ Nueva semana y cargar partidos'}
+            <Plus size={15} />
+            <span>{working ? 'Cargando partidos...' : 'Nueva semana y cargar partidos'}</span>
           </button>
         </div>
       )}
@@ -268,17 +276,24 @@ export default function Admin() {
           <div className="card" style={{ marginBottom: '16px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
               <h3 style={{ fontSize: '15px', fontWeight: '600' }}>Semana {semana.numero}</h3>
-              <span className={`badge badge-${semana.estado === 'abierta' ? 'amarillo' : 'gris'}`}>
-                {semana.estado === 'abierta' ? '🟢 Abierta' : '🔒 Cerrada'}
+              <span className={`badge badge-${semana.estado === 'abierta' ? 'verde' : 'gris'}`}>
+                {semana.estado === 'abierta' ? 'Abierta' : 'Cerrada'}
               </span>
             </div>
 
             {/* Bote */}
             <div style={{ marginBottom: '16px' }}>
-              <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', color: 'var(--text2)' }}>Bote (€)</label>
+              <label className="label">Bote (€)</label>
               <div style={{ display: 'flex', gap: '8px' }}>
-                <input className="input" type="number" value={boteInput}
-                  onChange={e => setBoteInput(e.target.value)} min="0" step="1" />
+                <div style={{ position: 'relative', flex: 1 }}>
+                  <Wallet size={15} style={{
+                    position: 'absolute', left: '13px', top: '50%', transform: 'translateY(-50%)',
+                    color: 'var(--text3)', pointerEvents: 'none',
+                  }} />
+                  <input className="input" type="number" value={boteInput}
+                    onChange={e => setBoteInput(e.target.value)} min="0" step="1"
+                    style={{ paddingLeft: '36px' }} />
+                </div>
                 <button className="btn btn-secondary" onClick={actualizarBote} disabled={working} style={{ flexShrink: 0 }}>
                   Guardar
                 </button>
@@ -288,13 +303,15 @@ export default function Admin() {
             {/* Acciones */}
             <div style={{ display: 'flex', gap: '8px' }}>
               <button className="btn btn-secondary" style={{ flex: 1 }} onClick={sincronizarResultados} disabled={working}>
-                🔄 Sync resultados
+                <RefreshCw size={14} />
+                <span>Sync resultados</span>
               </button>
               {semana.estado === 'abierta' && (
-                <button className="btn btn-secondary"
-                  style={{ flex: 1, color: 'var(--rojo)', borderColor: 'rgba(255,61,61,0.2)' }}
+                <button className="btn btn-ghost"
+                  style={{ flex: 1, color: 'var(--rojo)', borderColor: 'rgba(255,68,68,0.2)' }}
                   onClick={cerrarSemana} disabled={working}>
-                  🔒 Cerrar semana
+                  <Lock size={14} />
+                  <span>Cerrar semana</span>
                 </button>
               )}
             </div>
@@ -313,18 +330,18 @@ export default function Admin() {
                 <div key={p.id} style={{
                   padding: '12px 0',
                   borderBottom: i < partidos.length - 1 ? '1px solid var(--border)' : 'none',
-                  display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                 }}>
                   <div>
                     <p style={{ fontSize: '14px', fontWeight: '600', marginBottom: '2px' }}>
-                      {p.es_barca ? '🔵🔴' : '⚪'} {p.equipo_local} vs {p.equipo_visitante}
+                      {p.equipo_local} vs {p.equipo_visitante}
                     </p>
                     <p style={{ fontSize: '12px', color: 'var(--text2)' }}>{fecha}</p>
                   </div>
-                  <div style={{ textAlign: 'right' }}>
+                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
                     {p.estado === 'finalizado' ? (
                       <span style={{ fontFamily: 'var(--mono)', fontWeight: '700', color: 'var(--verde)' }}>
-                        {p.goles_local} - {p.goles_visitante}
+                        {p.goles_local} – {p.goles_visitante}
                       </span>
                     ) : (
                       <span className="badge badge-amarillo">Pendiente</span>
@@ -335,7 +352,7 @@ export default function Admin() {
             })}
           </div>
 
-          {/* Nueva semana (si la actual está cerrada) */}
+          {/* Siguiente semana */}
           {semana.estado === 'cerrada' && (
             <div className="card">
               <h3 style={{ fontSize: '15px', fontWeight: '600', marginBottom: '8px' }}>Siguiente semana</h3>
@@ -343,12 +360,20 @@ export default function Admin() {
                 La semana actual está cerrada. Crea la siguiente.
               </p>
               <div style={{ marginBottom: '16px' }}>
-                <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', color: 'var(--text2)' }}>Bote (€)</label>
-                <input className="input" type="number" value={boteInput}
-                  onChange={e => setBoteInput(e.target.value)} min="0" step="1" />
+                <label className="label">Bote (€)</label>
+                <div style={{ position: 'relative' }}>
+                  <Wallet size={15} style={{
+                    position: 'absolute', left: '13px', top: '50%', transform: 'translateY(-50%)',
+                    color: 'var(--text3)', pointerEvents: 'none',
+                  }} />
+                  <input className="input" type="number" value={boteInput}
+                    onChange={e => setBoteInput(e.target.value)} min="0" step="1"
+                    style={{ paddingLeft: '36px' }} />
+                </div>
               </div>
               <button className="btn btn-primary" style={{ width: '100%' }} onClick={crearSemana} disabled={working}>
-                {working ? 'Cargando...' : '➕ Nueva semana y cargar partidos'}
+                <Plus size={15} />
+                <span>{working ? 'Cargando...' : 'Nueva semana y cargar partidos'}</span>
               </button>
             </div>
           )}
