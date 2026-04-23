@@ -12,6 +12,7 @@ export default function Predicciones() {
   const [guardado, setGuardado] = useState({})
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [errorDuplicado, setErrorDuplicado] = useState('')
 
   useEffect(() => { loadData() }, [profile])
 
@@ -67,6 +68,48 @@ export default function Predicciones() {
     setGuardado(g => ({ ...g, [partidoId]: false }))
   }
 
+  async function checkDuplicado(partidoId, nuevaPred) {
+    // Construir el combinado completo con la nueva predicción
+    const misPreds = { ...predicciones, [partidoId]: nuevaPred }
+
+    // Solo comprobar si TODOS los partidos tienen predicción
+    const todasRellenas = partidos.every(p => {
+      const pr = misPreds[p.id]
+      return pr && pr.local !== '' && pr.visitante !== ''
+    })
+    if (!todasRellenas) return false
+
+    // Obtener predicciones de otros usuarios para esta semana
+    const { data: otras } = await supabase
+      .from('predicciones')
+      .select('user_id, partido_id, goles_local_prediccion, goles_visitante_prediccion')
+      .eq('semana_id', semana.id)
+      .neq('user_id', profile.id)
+
+    if (!otras?.length) return false
+
+    // Agrupar por usuario
+    const porUsuario = {}
+    otras.forEach(p => {
+      if (!porUsuario[p.user_id]) porUsuario[p.user_id] = {}
+      porUsuario[p.user_id][p.partido_id] = {
+        local: p.goles_local_prediccion,
+        visitante: p.goles_visitante_prediccion,
+      }
+    })
+
+    // Comprobar si algún usuario tiene el mismo combinado completo
+    return Object.values(porUsuario).some(susPreds =>
+      partidos.every(p => {
+        const mia = misPreds[p.id]
+        const suya = susPreds[p.id]
+        return suya &&
+          parseInt(mia.local) === suya.local &&
+          parseInt(mia.visitante) === suya.visitante
+      })
+    )
+  }
+
   async function guardarPrediccion(partido) {
     if (!profile || !semana) return
     const pred = predicciones[partido.id]
@@ -74,6 +117,15 @@ export default function Predicciones() {
     if (pred.local === '' || pred.visitante === '') return
 
     setSaving(true)
+    setErrorDuplicado('')
+
+    const esDuplicado = await checkDuplicado(partido.id, pred)
+    if (esDuplicado) {
+      setErrorDuplicado('Este combinado exacto ya lo tiene otro participante. Cambia al menos uno de los dos marcadores.')
+      setSaving(false)
+      return
+    }
+
     const data = {
       user_id: profile.id,
       semana_id: semana.id,
@@ -256,10 +308,24 @@ export default function Predicciones() {
         )
       })}
 
+      {errorDuplicado && (
+        <div style={{
+          background: 'rgba(255,61,61,0.08)', border: '1px solid rgba(255,61,61,0.25)',
+          borderRadius: '10px', padding: '14px 16px', marginTop: '8px',
+          display: 'flex', gap: '10px', alignItems: 'flex-start'
+        }}>
+          <span style={{ fontSize: '18px', flexShrink: 0 }}>⚠️</span>
+          <p style={{ fontSize: '13px', color: 'var(--rojo)', lineHeight: '1.5' }}>
+            {errorDuplicado}
+          </p>
+        </div>
+      )}
+
       {partidos.length > 0 && (
         <div className="card" style={{ background: 'rgba(0,200,83,0.05)', border: '1px solid rgba(0,200,83,0.15)', marginTop: '8px' }}>
           <p style={{ fontSize: '13px', color: 'var(--text2)', textAlign: 'center', lineHeight: '1.6' }}>
             💡 Debes acertar el marcador exacto de <strong style={{ color: 'var(--text)' }}>los dos partidos</strong> para ganar el bote.<br />
+            No puedes poner el mismo combinado que otro participante.<br />
             Si nadie acierta, se acumula para la siguiente semana.
           </p>
         </div>
