@@ -18,8 +18,16 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Parámetro type inválido. Usa: upcoming | finished' })
   }
 
+  if (!API_KEY) {
+    return res.status(500).json({ error: 'VITE_FOOTBALL_API_KEY no está configurada en Vercel' })
+  }
+
   try {
     const response = await fetch(url, { headers: { 'X-Auth-Token': API_KEY } })
+    if (!response.ok) {
+      const text = await response.text()
+      return res.status(response.status).json({ error: `API error ${response.status}: ${text}` })
+    }
     const data = await response.json()
     res.status(200).json(data)
   } catch (err) {

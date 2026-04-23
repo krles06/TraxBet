@@ -26,8 +26,9 @@ async function footballFetch(type) {
     data = await res.json()
   } else {
     const res = await fetch(`/api/football?type=${type}`)
-    if (!res.ok) throw new Error(`Proxy error ${res.status}`)
-    data = await res.json()
+    const json = await res.json()
+    if (!res.ok) throw new Error(json.error || `Proxy error ${res.status}`)
+    data = json
   }
   return (data.matches || []).filter(
     m => m.homeTeam.id === BARCA_ID || m.awayTeam.id === BARCA_ID ||
