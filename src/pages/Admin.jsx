@@ -30,9 +30,11 @@ async function footballFetch(type) {
     if (!res.ok) throw new Error(json.error || `Proxy error ${res.status}`)
     data = json
   }
+  const UPCOMING = ['SCHEDULED', 'TIMED', 'POSTPONED']
   return (data.matches || []).filter(
-    m => m.homeTeam.id === BARCA_ID || m.awayTeam.id === BARCA_ID ||
-         m.homeTeam.id === MADRID_ID || m.awayTeam.id === MADRID_ID
+    m => (m.homeTeam.id === BARCA_ID || m.awayTeam.id === BARCA_ID ||
+          m.homeTeam.id === MADRID_ID || m.awayTeam.id === MADRID_ID) &&
+         (type === 'finished' || UPCOMING.includes(m.status))
   )
 }
 

@@ -112,13 +112,14 @@ export default async function handler(req, res) {
       const today = new Date()
       const in21days = new Date(today.getTime() + 21 * 24 * 60 * 60 * 1000)
       const apiRes = await fetch(
-        `https://api.football-data.org/v4/competitions/PD/matches?dateFrom=${today.toISOString().split('T')[0]}&dateTo=${in21days.toISOString().split('T')[0]}&status=SCHEDULED`,
+        `https://api.football-data.org/v4/competitions/PD/matches?dateFrom=${today.toISOString().split('T')[0]}&dateTo=${in21days.toISOString().split('T')[0]}`,
         { headers: { 'X-Auth-Token': FOOTBALL_API_KEY } }
       )
       const apiData = await apiRes.json()
       const barcaMadrid = (apiData.matches || []).filter(
-        m => m.homeTeam.id === BARCA_ID || m.awayTeam.id === BARCA_ID ||
-             m.homeTeam.id === MADRID_ID || m.awayTeam.id === MADRID_ID
+        m => (m.homeTeam.id === BARCA_ID || m.awayTeam.id === BARCA_ID ||
+              m.homeTeam.id === MADRID_ID || m.awayTeam.id === MADRID_ID) &&
+             ['SCHEDULED', 'TIMED', 'POSTPONED'].includes(m.status)
       )
 
       if (barcaMadrid.length > 0) {

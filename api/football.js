@@ -11,7 +11,7 @@ export default async function handler(req, res) {
     const in21days = new Date(today.getTime() + 21 * 24 * 60 * 60 * 1000)
     const dateFrom = today.toISOString().split('T')[0]
     const dateTo = in21days.toISOString().split('T')[0]
-    url = `https://api.football-data.org/v4/competitions/PD/matches?dateFrom=${dateFrom}&dateTo=${dateTo}&status=SCHEDULED`
+    url = `https://api.football-data.org/v4/competitions/PD/matches?dateFrom=${dateFrom}&dateTo=${dateTo}`
   } else if (type === 'finished') {
     url = `https://api.football-data.org/v4/competitions/PD/matches?status=FINISHED`
   } else {
