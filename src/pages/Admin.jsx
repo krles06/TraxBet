@@ -7,37 +7,43 @@ import { es } from 'date-fns/locale'
 const FOOTBALL_API_KEY = import.meta.env.VITE_FOOTBALL_API_KEY
 const BARCA_ID = 81
 const MADRID_ID = 86
-const LALIGA_ID = 'PD'
+const IS_DEV = import.meta.env.DEV
 
-async function apiFetch(url) {
-  const res = await fetch(url, { headers: { 'X-Auth-Token': FOOTBALL_API_KEY } })
-  if (!res.ok) throw new Error(`API error ${res.status}: ${res.statusText}`)
-  return res.json()
+async function footballFetch(type) {
+  let data
+  if (IS_DEV) {
+    // En desarrollo localhost está en el allowlist de CORS de football-data.org
+    const today = new Date()
+    let url
+    if (type === 'upcoming') {
+      const in21days = new Date(today.getTime() + 21 * 24 * 60 * 60 * 1000)
+      url = `https://api.football-data.org/v4/competitions/PD/matches?dateFrom=${today.toISOString().split('T')[0]}&dateTo=${in21days.toISOString().split('T')[0]}&status=SCHEDULED`
+    } else {
+      url = `https://api.football-data.org/v4/competitions/PD/matches?status=FINISHED`
+    }
+    const res = await fetch(url, { headers: { 'X-Auth-Token': FOOTBALL_API_KEY } })
+    if (!res.ok) throw new Error(`API error ${res.status}`)
+    data = await res.json()
+  } else {
+    // En producción usamos el proxy serverless de Vercel para evitar CORS
+    const res = await fetch(`/api/football?type=${type}`)
+    if (!res.ok) throw new Error(`Proxy error ${res.status}`)
+    data = await res.json()
+  }
+  return (data.matches || []).filter(
+    m => m.homeTeam.id === BARCA_ID || m.awayTeam.id === BARCA_ID ||
+         m.homeTeam.id === MADRID_ID || m.awayTeam.id === MADRID_ID
+  )
 }
 
 async function fetchUpcomingMatches() {
-  const today = new Date()
-  const in21days = new Date(today.getTime() + 21 * 24 * 60 * 60 * 1000)
-  const dateFrom = today.toISOString().split('T')[0]
-  const dateTo = in21days.toISOString().split('T')[0]
-  const data = await apiFetch(
-    `https://api.football-data.org/v4/competitions/${LALIGA_ID}/matches?dateFrom=${dateFrom}&dateTo=${dateTo}&status=SCHEDULED`
-  )
-  return (data.matches || []).filter(
-    m => m.homeTeam.id === BARCA_ID || m.awayTeam.id === BARCA_ID ||
-         m.homeTeam.id === MADRID_ID || m.awayTeam.id === MADRID_ID
-  )
+  return footballFetch('upcoming')
 }
 
 async function fetchFinishedMatches() {
-  const data = await apiFetch(
-    `https://api.football-data.org/v4/competitions/${LALIGA_ID}/matches?status=FINISHED`
-  )
-  return (data.matches || []).filter(
-    m => m.homeTeam.id === BARCA_ID || m.awayTeam.id === BARCA_ID ||
-         m.homeTeam.id === MADRID_ID || m.awayTeam.id === MADRID_ID
-  )
+  return footballFetch('finished')
 }
+
 
 export default function Admin() {
   const { profile } = useAuth()
