@@ -15,6 +15,20 @@ export default function Resultados() {
   useEffect(() => { loadSemanas() }, [])
   useEffect(() => { if (semanaSeleccionada) loadDetalle() }, [semanaSeleccionada])
 
+  // Actualización en tiempo real cuando cambia un partido o semana
+  useEffect(() => {
+    const channel = supabase
+      .channel('resultados-partidos')
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'partidos' }, () => {
+        if (semanaSeleccionada) loadDetalle()
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'semanas' }, () => {
+        loadSemanas()
+      })
+      .subscribe()
+    return () => supabase.removeChannel(channel)
+  }, [semanaSeleccionada])
+
   async function loadSemanas() {
     const { data } = await supabase
       .from('semanas')

@@ -15,6 +15,20 @@ export default function Dashboard() {
 
   useEffect(() => { loadDashboard() }, [profile])
 
+  // Actualización en tiempo real cuando cambia un partido
+  useEffect(() => {
+    const channel = supabase
+      .channel('dashboard-partidos')
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'partidos' }, () => {
+        loadDashboard()
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'semanas' }, () => {
+        loadDashboard()
+      })
+      .subscribe()
+    return () => supabase.removeChannel(channel)
+  }, [])
+
   async function loadDashboard() {
     // Semana activa
     const { data: sem } = await supabase
