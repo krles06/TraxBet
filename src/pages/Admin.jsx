@@ -89,12 +89,18 @@ export default function Admin() {
   async function crearSemana() {
     setWorking(true)
     try {
-      const matches = await fetchUpcomingMatches()
-      if (matches.length === 0) {
+      const allMatches = await fetchUpcomingMatches()
+      if (allMatches.length === 0) {
         showMsg('No hay partidos de Barça/Madrid programados en los próximos 21 días', 'warn')
         setWorking(false)
         return
       }
+
+      // Solo la jornada más próxima (menor número de jornada entre los resultados)
+      const jornadaMinima = Math.min(...allMatches.map(m => m.matchday).filter(Boolean))
+      const matches = jornadaMinima
+        ? allMatches.filter(m => m.matchday === jornadaMinima)
+        : allMatches.slice(0, 2)
 
       const { data: lastSem } = await supabase
         .from('semanas').select('numero').order('numero', { ascending: false }).limit(1).maybeSingle()
@@ -133,7 +139,8 @@ export default function Admin() {
         })
       }
 
-      showMsg(`✅ Semana ${nextNumero} creada con ${matches.length} partido(s)`)
+      const jornada = matches[0]?.matchday ? ` (jornada ${matches[0].matchday})` : ''
+      showMsg(`✅ Semana ${nextNumero} creada con ${matches.length} partido(s)${jornada}`)
       await loadData()
     } catch (e) {
       showMsg('Error de API: ' + e.message, 'err')
