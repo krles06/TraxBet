@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth.jsx'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { Wallet, Trophy, Clock, Lock, Check, X, PenLine } from 'lucide-react'
+import { Wallet, Trophy, Clock, Lock, Check, X, PenLine, Users } from 'lucide-react'
 
 export default function Dashboard() {
   const { profile } = useAuth()
@@ -12,6 +12,7 @@ export default function Dashboard() {
   const [partidos, setPartidos] = useState([])
   const [ranking, setRanking] = useState([])
   const [misPredicciones, setMisPredicciones] = useState([])
+  const [participantes, setParticipantes] = useState([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => { loadDashboard() }, [profile])
@@ -51,6 +52,13 @@ export default function Dashboard() {
           .eq('user_id', profile.id)
         setMisPredicciones(preds || [])
       }
+
+      const { data: pagosData } = await supabase
+        .from('pagos')
+        .select('id, user_id, pagado, profiles(username)')
+        .eq('semana_id', sem.id)
+        .order('created_at')
+      setParticipantes(pagosData || [])
 
       const { data: rank } = await supabase
         .from('predicciones')
@@ -197,6 +205,39 @@ export default function Dashboard() {
               </button>
             </Link>
           )}
+        </div>
+      )}
+
+      {/* Participantes */}
+      {participantes.length > 0 && (
+        <div className="card" style={{ marginBottom: '16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+            <Users size={16} color="var(--text2)" />
+            <h3 style={{ fontSize: '15px', fontWeight: '600' }}>Participantes</h3>
+            <span style={{ fontSize: '13px', color: 'var(--text3)', marginLeft: 'auto' }}>
+              {participantes.filter(p => p.pagado).length}/{participantes.length} pagados
+            </span>
+          </div>
+          {participantes.map((p, i) => (
+            <div key={p.id} style={{
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              padding: '10px 0',
+              borderBottom: i < participantes.length - 1 ? '1px solid var(--border)' : 'none',
+            }}>
+              <span style={{ fontSize: '14px', fontWeight: profile?.id === p.user_id ? '700' : '400' }}>
+                {p.profiles?.username}{profile?.id === p.user_id ? ' (tú)' : ''}
+              </span>
+              {p.pagado ? (
+                <span className="badge badge-verde" style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                  <Check size={10} strokeWidth={3} /> Confirmado
+                </span>
+              ) : (
+                <span className="badge badge-amarillo" style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                  <Clock size={10} /> Pendiente
+                </span>
+              )}
+            </div>
+          ))}
         </div>
       )}
 

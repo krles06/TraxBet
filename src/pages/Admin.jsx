@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth.jsx'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { Settings, Plus, RefreshCw, Lock, Check, AlertCircle, AlertTriangle, Wallet, Trash2 } from 'lucide-react'
+import { Settings, Plus, RefreshCw, Lock, Check, AlertCircle, AlertTriangle, Wallet, Trash2, Users, Clock } from 'lucide-react'
 
 const FOOTBALL_API_KEY = import.meta.env.VITE_FOOTBALL_API_KEY
 const BARCA_ID = 81
@@ -50,6 +50,7 @@ export default function Admin() {
   const [boteInput, setBoteInput] = useState('5')
   const [msg, setMsg] = useState({ text: '', type: 'ok' })
   const [confirmReset, setConfirmReset] = useState(false)
+  const [participantes, setParticipantes] = useState([])
 
   useEffect(() => {
     if (profile?.is_admin) loadData()
@@ -74,6 +75,13 @@ export default function Admin() {
         .eq('semana_id', sem.id)
         .order('fecha_partido')
       setPartidos(parts || [])
+
+      const { data: pagosData } = await supabase
+        .from('pagos')
+        .select('id, user_id, pagado, importe, profiles(username)')
+        .eq('semana_id', sem.id)
+        .order('created_at')
+      setParticipantes(pagosData || [])
     }
     setLoading(false)
   }
@@ -210,6 +218,13 @@ export default function Admin() {
     setWorking(true)
     await supabase.from('semanas').update({ estado: 'cerrada' }).eq('id', semana.id)
     showMsg('Semana cerrada — ya no se aceptan predicciones')
+    await loadData()
+    setWorking(false)
+  }
+
+  async function togglePago(pagoId, currentPagado) {
+    setWorking(true)
+    await supabase.from('pagos').update({ pagado: !currentPagado }).eq('id', pagoId)
     await loadData()
     setWorking(false)
   }
@@ -367,6 +382,44 @@ export default function Admin() {
                 </button>
               )}
             </div>
+          </div>
+
+          {/* Participantes */}
+          <div className="card" style={{ marginBottom: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+              <Users size={16} color="var(--text2)" />
+              <h3 style={{ fontSize: '15px', fontWeight: '600' }}>Participantes</h3>
+              <span style={{ fontSize: '13px', color: 'var(--text3)', marginLeft: 'auto' }}>
+                {participantes.filter(p => p.pagado).length}/{participantes.length} pagados
+              </span>
+            </div>
+            {participantes.length === 0 ? (
+              <p style={{ color: 'var(--text2)', fontSize: '14px' }}>Nadie ha enviado predicciones aún</p>
+            ) : participantes.map((p, i) => (
+              <div key={p.id} style={{
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                padding: '10px 0',
+                borderBottom: i < participantes.length - 1 ? '1px solid var(--border)' : 'none',
+              }}>
+                <div>
+                  <p style={{ fontSize: '14px', fontWeight: '600' }}>{p.profiles?.username}</p>
+                  <p style={{ fontSize: '12px', color: 'var(--text3)' }}>{p.importe}€</p>
+                </div>
+                <button
+                  className={`btn ${p.pagado ? 'btn-secondary' : 'btn-ghost'}`}
+                  style={{
+                    padding: '6px 12px', fontSize: '12px',
+                    ...(p.pagado ? {} : { color: 'var(--amarillo)', borderColor: 'rgba(255,200,0,0.3)' }),
+                  }}
+                  onClick={() => togglePago(p.id, p.pagado)}
+                  disabled={working}
+                >
+                  {p.pagado
+                    ? <><Check size={12} strokeWidth={3} /><span>Pagado</span></>
+                    : <><Clock size={12} /><span>Pendiente</span></>}
+                </button>
+              </div>
+            ))}
           </div>
 
           {/* Partidos */}
