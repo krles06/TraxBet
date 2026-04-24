@@ -3,7 +3,8 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth.jsx'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { Clock, Lock, Check, AlertCircle, Info, Calendar } from 'lucide-react'
+import { Clock, Lock, Check, AlertCircle, Info, Calendar, Flame } from 'lucide-react'
+import { useCountdown } from '../hooks/useCountdown.js'
 
 export default function Predicciones() {
   const { profile } = useAuth()
@@ -126,7 +127,8 @@ export default function Predicciones() {
   const deadline = primerPartido
     ? new Date(new Date(primerPartido.fecha_partido).getTime() - 3 * 60 * 60 * 1000)
     : null
-  const plazoVencido = deadline ? new Date() >= deadline : partidos.length > 0
+  const countdown = useCountdown(deadline)
+  const plazoVencido = countdown ? countdown.expired : partidos.length > 0
 
   const partidoAbierto = (p) => !plazoVencido && p.estado === 'programado'
 
@@ -144,24 +146,26 @@ export default function Predicciones() {
       )}
 
       {/* Banner de plazo */}
-      {deadline && !plazoVencido && (
-        <div className="alert alert-warn" style={{ marginBottom: '20px' }}>
-          <Clock size={15} style={{ flexShrink: 0, marginTop: '1px' }} />
+      {countdown && !countdown.expired && (
+        <div className={`alert ${countdown.urgent ? 'alert-error' : 'alert-warn'}`} style={{ marginBottom: '20px' }}>
+          {countdown.urgent ? <Flame size={15} style={{ flexShrink: 0 }} /> : <Clock size={15} style={{ flexShrink: 0 }} />}
           <div>
-            <p style={{ fontWeight: '600', marginBottom: '2px' }}>Plazo de predicciones</p>
-            <p style={{ fontSize: '12px', opacity: 0.85 }}>
-              Cierra el {format(deadline, "EEEE d MMM 'a las' HH:mm", { locale: es })}
+            <p style={{ fontWeight: '600', marginBottom: '2px' }}>
+              {countdown.urgent ? '¡Cierra pronto!' : 'Plazo de predicciones'}
+            </p>
+            <p style={{ fontSize: '12px', opacity: 0.85, fontFamily: 'var(--mono)' }}>
+              {countdown.horas > 0 ? `${countdown.horas}h ` : ''}{String(countdown.minutos).padStart(2, '0')}m {String(countdown.segundos).padStart(2, '0')}s
             </p>
           </div>
         </div>
       )}
-      {deadline && plazoVencido && programados.length > 0 && (
+      {countdown && countdown.expired && programados.length > 0 && (
         <div className="alert alert-error" style={{ marginBottom: '20px' }}>
           <Lock size={15} style={{ flexShrink: 0, marginTop: '1px' }} />
           <div>
             <p style={{ fontWeight: '600', marginBottom: '2px' }}>Plazo cerrado</p>
             <p style={{ fontSize: '12px', opacity: 0.85 }}>
-              Venció el {format(deadline, "d MMM 'a las' HH:mm", { locale: es })}
+              Venció el {deadline && format(deadline, "d MMM 'a las' HH:mm", { locale: es })}
             </p>
           </div>
         </div>

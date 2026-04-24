@@ -5,12 +5,16 @@ import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { BarChart2, Trophy, Circle, Inbox } from 'lucide-react'
 
+const EMOJIS = ['🔥', '😅', '💪', '😭']
+
 export default function Resultados() {
   const { profile } = useAuth()
   const [semanas, setSemanas] = useState([])
   const [semanaSeleccionada, setSemanaSeleccionada] = useState(null)
   const [partidos, setPartidos] = useState([])
   const [predicciones, setPredicciones] = useState([])
+  const [reacciones, setReacciones] = useState([])
+  const [miReaccion, setMiReaccion] = useState(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => { loadSemanas() }, [])
@@ -22,8 +26,9 @@ export default function Resultados() {
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'partidos' }, () => {
         if (semanaSeleccionada) loadDetalle()
       })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'semanas' }, () => {
-        loadSemanas()
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'semanas' }, () => loadSemanas())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'reacciones' }, () => {
+        if (semanaSeleccionada) loadReacciones(semanaSeleccionada.id)
       })
       .subscribe()
     return () => supabase.removeChannel(channel)
@@ -32,7 +37,7 @@ export default function Resultados() {
   async function loadSemanas() {
     const { data } = await supabase
       .from('semanas')
-      .select('*')
+      .select('*, ganador:profiles!ganador_id(username)')
       .order('numero', { ascending: false })
     setSemanas(data || [])
     if (data?.length) setSemanaSeleccionada(data[0])
@@ -57,10 +62,42 @@ export default function Resultados() {
     } else {
       setPredicciones([])
     }
+
+    await loadReacciones(semanaSeleccionada.id)
+  }
+
+  async function loadReacciones(semanaId) {
+    const { data } = await supabase
+      .from('reacciones')
+      .select('id, user_id, emoji')
+      .eq('semana_id', semanaId)
+    setReacciones(data || [])
+    const mia = (data || []).find(r => r.user_id === profile?.id)
+    setMiReaccion(mia?.emoji || null)
+  }
+
+  async function toggleReaccion(emoji) {
+    if (!profile || !semanaSeleccionada) return
+    if (miReaccion === emoji) {
+      await supabase.from('reacciones').delete()
+        .eq('user_id', profile.id).eq('semana_id', semanaSeleccionada.id)
+      setMiReaccion(null)
+    } else {
+      await supabase.from('reacciones').upsert(
+        { user_id: profile.id, semana_id: semanaSeleccionada.id, emoji },
+        { onConflict: 'user_id,semana_id' }
+      )
+      setMiReaccion(emoji)
+    }
+    await loadReacciones(semanaSeleccionada.id)
   }
 
   function getPredsForPartido(partidoId) {
     return predicciones.filter(p => p.partido_id === partidoId)
+  }
+
+  function countReaccion(emoji) {
+    return reacciones.filter(r => r.emoji === emoji).length
   }
 
   if (loading) return null
@@ -92,29 +129,82 @@ export default function Resultados() {
       {semanaSeleccionada && (
         <>
           {/* Info semana */}
-          <div className="card" style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div>
-              <p style={{ fontSize: '12px', color: 'var(--text2)', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                Semana {semanaSeleccionada.numero}
-              </p>
-              <p style={{ fontFamily: 'var(--mono)', fontSize: '28px', fontWeight: '700', color: 'var(--verde)', lineHeight: 1 }}>
-                {semanaSeleccionada.bote_euros}€
-              </p>
+          <div className="card" style={{ marginBottom: '16px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: semanaSeleccionada.ganador_id || semanaSeleccionada.estado === 'resuelta' ? '14px' : '0' }}>
+              <div>
+                <p style={{ fontSize: '12px', color: 'var(--text2)', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Semana {semanaSeleccionada.numero}
+                </p>
+                <p style={{ fontFamily: 'var(--mono)', fontSize: '28px', fontWeight: '700', color: 'var(--verde)', lineHeight: 1 }}>
+                  {semanaSeleccionada.bote_euros}€
+                </p>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <span className={`badge badge-${
+                  semanaSeleccionada.estado === 'resuelta' ? 'verde' :
+                  semanaSeleccionada.estado === 'abierta' ? 'amarillo' : 'gris'
+                }`}>
+                  {semanaSeleccionada.estado === 'resuelta' ? 'Resuelta' :
+                   semanaSeleccionada.estado === 'abierta' ? 'En juego' : 'Cerrada'}
+                </span>
+              </div>
             </div>
-            <div style={{ textAlign: 'right' }}>
-              <span className={`badge badge-${
-                semanaSeleccionada.estado === 'resuelta' ? 'verde' :
-                semanaSeleccionada.estado === 'abierta' ? 'amarillo' : 'gris'
-              }`}>
-                {semanaSeleccionada.estado === 'resuelta' ? 'Resuelta' :
-                 semanaSeleccionada.estado === 'abierta' ? 'En juego' : 'Cerrada'}
-              </span>
-              {semanaSeleccionada.ganador_id && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '5px', justifyContent: 'flex-end', marginTop: '8px' }}>
-                  <Trophy size={13} color="var(--amarillo)" />
-                  <p style={{ fontSize: '12px', color: 'var(--amarillo)', fontWeight: '600' }}>Ganador verificado</p>
+
+            {/* Resultado semana */}
+            {semanaSeleccionada.estado === 'resuelta' && (
+              semanaSeleccionada.ganador_id ? (
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: '10px',
+                  background: 'rgba(255,200,0,0.08)', borderRadius: '8px',
+                  padding: '10px 12px', border: '1px solid rgba(255,200,0,0.2)',
+                }}>
+                  <Trophy size={18} color="var(--amarillo)" style={{ flexShrink: 0 }} />
+                  <div>
+                    <p style={{ fontSize: '11px', color: 'var(--text3)', marginBottom: '2px' }}>GANADOR</p>
+                    <p style={{ fontSize: '15px', fontWeight: '700' }}>{semanaSeleccionada.ganador?.username}</p>
+                  </div>
+                  <p style={{ marginLeft: 'auto', fontFamily: 'var(--mono)', fontWeight: '700', fontSize: '18px', color: 'var(--verde)' }}>
+                    +{semanaSeleccionada.bote_euros}€
+                  </p>
                 </div>
-              )}
+              ) : (
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: '10px',
+                  background: 'rgba(255,200,0,0.05)', borderRadius: '8px',
+                  padding: '10px 12px', border: '1px solid rgba(255,200,0,0.15)',
+                }}>
+                  <span style={{ fontSize: '20px' }}>🤷</span>
+                  <div>
+                    <p style={{ fontSize: '14px', fontWeight: '600', marginBottom: '2px' }}>Nadie acertó los dos marcadores</p>
+                    <p style={{ fontSize: '12px', color: 'var(--amarillo)' }}>El bote se acumula a la siguiente semana</p>
+                  </div>
+                </div>
+              )
+            )}
+
+            {/* Reacciones */}
+            <div style={{ display: 'flex', gap: '8px', marginTop: '14px' }}>
+              {EMOJIS.map(emoji => {
+                const count = countReaccion(emoji)
+                const active = miReaccion === emoji
+                return (
+                  <button key={emoji} onClick={() => toggleReaccion(emoji)} style={{
+                    display: 'flex', alignItems: 'center', gap: '4px',
+                    padding: '6px 10px', borderRadius: '20px', border: 'none', cursor: 'pointer',
+                    background: active ? 'rgba(0,200,83,0.15)' : 'var(--bg3)',
+                    outline: active ? '1px solid rgba(0,200,83,0.4)' : '1px solid var(--border)',
+                    transition: 'all 0.15s',
+                    fontSize: '16px',
+                  }}>
+                    {emoji}
+                    {count > 0 && (
+                      <span style={{ fontSize: '12px', fontWeight: '600', color: active ? 'var(--verde)' : 'var(--text2)' }}>
+                        {count}
+                      </span>
+                    )}
+                  </button>
+                )
+              })}
             </div>
           </div>
 

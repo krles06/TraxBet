@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useAuth } from '../hooks/useAuth.jsx'
-import { User, Mail, Phone, Save, LogOut, Check, AlertCircle } from 'lucide-react'
+import { supabase } from '../lib/supabase'
+import { User, Mail, Phone, Save, LogOut, Check, AlertCircle, Target, Trophy, Calendar, TrendingUp } from 'lucide-react'
 
 export default function Perfil() {
   const { user, profile, updateProfile, signOut } = useAuth()
@@ -9,18 +10,46 @@ export default function Perfil() {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
+  const [stats, setStats] = useState(null)
+
+  useEffect(() => { if (profile) loadStats() }, [profile])
+
+  async function loadStats() {
+    const { data: preds } = await supabase
+      .from('predicciones')
+      .select('semana_id, es_correcto')
+      .eq('user_id', profile.id)
+
+    const { data: ganadas } = await supabase
+      .from('semanas')
+      .select('id, bote_euros')
+      .eq('ganador_id', profile.id)
+
+    if (!preds) return
+
+    const semanasJugadas = new Set(preds.map(p => p.semana_id)).size
+    const conResultado = preds.filter(p => p.es_correcto !== null)
+    const aciertos = conResultado.filter(p => p.es_correcto).length
+
+    setStats({
+      semanasJugadas,
+      aciertos,
+      total: conResultado.length,
+      pct: conResultado.length > 0 ? Math.round((aciertos / conResultado.length) * 100) : 0,
+      semanasGanadas: ganadas?.length || 0,
+      boteGanado: (ganadas || []).reduce((sum, s) => sum + (s.bote_euros || 0), 0),
+    })
+  }
 
   async function handleSave() {
     if (!username.trim()) { setError('El nombre no puede estar vacío'); return }
     if (username.trim().length < 3) { setError('Mínimo 3 caracteres'); return }
     setSaving(true)
     setError('')
-
     const { error: updateError } = await updateProfile({
       username: username.trim(),
       phone: phone.trim() || null,
     })
-
     if (updateError) setError(updateError.message)
     else { setSaved(true); setTimeout(() => setSaved(false), 2500) }
     setSaving(false)
@@ -48,6 +77,45 @@ export default function Perfil() {
           </div>
         </div>
       </div>
+
+      {/* Estadísticas */}
+      {stats && (
+        <div className="card" style={{ marginBottom: '16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+            <TrendingUp size={16} color="var(--verde)" />
+            <h3 style={{ fontSize: '15px', fontWeight: '600' }}>Mis estadísticas</h3>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            {[
+              { icon: <Calendar size={16} color="var(--text3)" />, label: 'Semanas jugadas', value: stats.semanasJugadas },
+              { icon: <Target size={16} color="var(--text3)" />, label: 'Aciertos', value: `${stats.aciertos} / ${stats.total}` },
+              { icon: <TrendingUp size={16} color="var(--text3)" />, label: '% de acierto', value: `${stats.pct}%` },
+              {
+                icon: <Trophy size={16} color={stats.semanasGanadas > 0 ? 'var(--amarillo)' : 'var(--text3)'} />,
+                label: 'Botes ganados',
+                value: stats.semanasGanadas > 0 ? `${stats.semanasGanadas} (${stats.boteGanado}€)` : '—',
+                highlight: stats.semanasGanadas > 0,
+              },
+            ].map(({ icon, label, value, highlight }) => (
+              <div key={label} style={{
+                background: 'var(--bg3)', borderRadius: '10px', padding: '12px',
+                border: highlight ? '1px solid rgba(255,200,0,0.3)' : '1px solid transparent',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+                  {icon}
+                  <p style={{ fontSize: '11px', color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</p>
+                </div>
+                <p style={{
+                  fontSize: '20px', fontWeight: '700', fontFamily: 'var(--mono)',
+                  color: highlight ? 'var(--amarillo)' : 'var(--text)',
+                }}>
+                  {value}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Editar perfil */}
       <div className="card" style={{ marginBottom: '16px' }}>
@@ -107,8 +175,7 @@ export default function Perfil() {
           >
             {saved
               ? <><Check size={15} strokeWidth={2.5} /><span>Guardado</span></>
-              : saving
-              ? 'Guardando...'
+              : saving ? 'Guardando...'
               : <><Save size={15} /><span>Guardar cambios</span></>}
           </button>
         </div>
