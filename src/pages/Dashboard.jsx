@@ -387,7 +387,7 @@ export default function Dashboard() {
             <h3 style={{ fontSize: '15px', fontWeight: '600' }}>Ranking histórico</h3>
           </div>
           <p style={{ fontSize: '12px', color: 'var(--text3)', marginBottom: '16px' }}>
-            Aciertos acumulados de todas las semanas
+            +1 por cada marcador exacto acertado, aunque no te lleves el bote
           </p>
           {ranking.map((r, i) => (
             <div key={r.username} style={{
