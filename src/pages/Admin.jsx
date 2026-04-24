@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth.jsx'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { Settings, Plus, RefreshCw, Lock, Check, AlertCircle, AlertTriangle, Wallet, Trash2, Users, Clock } from 'lucide-react'
+import { Settings, Plus, RefreshCw, Lock, Check, X, AlertCircle, AlertTriangle, Wallet, Users } from 'lucide-react'
 
 const FOOTBALL_API_KEY = import.meta.env.VITE_FOOTBALL_API_KEY
 const BARCA_ID = 81
@@ -45,12 +45,11 @@ export default function Admin() {
   const { profile } = useAuth()
   const [semana, setSemana] = useState(null)
   const [partidos, setPartidos] = useState([])
+  const [participantes, setParticipantes] = useState([])
   const [loading, setLoading] = useState(true)
   const [working, setWorking] = useState(false)
   const [boteInput, setBoteInput] = useState('5')
   const [msg, setMsg] = useState({ text: '', type: 'ok' })
-  const [confirmReset, setConfirmReset] = useState(false)
-  const [participantes, setParticipantes] = useState([])
 
   useEffect(() => {
     if (profile?.is_admin) loadData()
@@ -76,12 +75,12 @@ export default function Admin() {
         .order('fecha_partido')
       setPartidos(parts || [])
 
-      const { data: pagosData } = await supabase
+      const { data: pagos } = await supabase
         .from('pagos')
-        .select('id, user_id, pagado, importe, profiles(username)')
+        .select('id, user_id, pagado, profiles(username)')
         .eq('semana_id', sem.id)
         .order('created_at')
-      setParticipantes(pagosData || [])
+      setParticipantes(pagos || [])
     }
     setLoading(false)
   }
@@ -202,6 +201,18 @@ export default function Admin() {
     setWorking(false)
   }
 
+  async function togglePago(pago) {
+    setWorking(true)
+    const nuevoPagado = !pago.pagado
+    await supabase.from('pagos').update({ pagado: nuevoPagado }).eq('id', pago.id)
+    const delta = nuevoPagado ? 5 : -5
+    const nuevoBote = Math.max(0, (semana.bote_euros || 0) + delta)
+    await supabase.from('semanas').update({ bote_euros: nuevoBote }).eq('id', semana.id)
+    showMsg(nuevoPagado ? `Pago confirmado (+5€ al bote)` : `Pago retirado (-5€ del bote)`)
+    await loadData()
+    setWorking(false)
+  }
+
   async function actualizarBote() {
     if (!semana) return
     setWorking(true)
@@ -219,30 +230,6 @@ export default function Admin() {
     await supabase.from('semanas').update({ estado: 'cerrada' }).eq('id', semana.id)
     showMsg('Semana cerrada — ya no se aceptan predicciones')
     await loadData()
-    setWorking(false)
-  }
-
-  async function togglePago(pagoId, currentPagado) {
-    setWorking(true)
-    await supabase.from('pagos').update({ pagado: !currentPagado }).eq('id', pagoId)
-    await loadData()
-    setWorking(false)
-  }
-
-  async function resetearDatos() {
-    setWorking(true)
-    setConfirmReset(false)
-    try {
-      await supabase.from('predicciones').delete().not('id', 'is', null)
-      await supabase.from('pagos').delete().not('id', 'is', null)
-      await supabase.from('partidos').delete().not('id', 'is', null)
-      await supabase.from('semanas').delete().not('id', 'is', null)
-      setSemana(null)
-      setPartidos([])
-      showMsg('Datos borrados — empezamos desde cero')
-    } catch (e) {
-      showMsg('Error al borrar: ' + e.message, 'err')
-    }
     setWorking(false)
   }
 
@@ -271,7 +258,7 @@ export default function Admin() {
         <Settings size={18} color="var(--text2)" />
         <h1 style={{ fontSize: '22px', fontWeight: '700', letterSpacing: '-0.02em' }}>Admin</h1>
       </div>
-      <p style={{ color: 'var(--text2)', fontSize: '13px', marginBottom: '24px' }}>Panel de administración de TraxallBets</p>
+      <p style={{ color: 'var(--text2)', fontSize: '13px', marginBottom: '24px' }}>Panel de administración de la porra</p>
 
       {msg.text && (
         <div className={`alert ${msgClass}`} style={{ marginBottom: '16px' }}>
@@ -279,37 +266,6 @@ export default function Admin() {
           <span>{msg.text}</span>
         </div>
       )}
-
-      {/* Zona peligrosa */}
-      <div className="card" style={{ marginBottom: '16px', borderColor: 'rgba(255,68,68,0.25)' }}>
-        <h3 style={{ fontSize: '15px', fontWeight: '600', marginBottom: '6px', color: 'var(--rojo)' }}>
-          Zona peligrosa
-        </h3>
-        <p style={{ fontSize: '13px', color: 'var(--text2)', marginBottom: '14px' }}>
-          Borra todas las semanas, partidos, predicciones y pagos. Los usuarios no se eliminan.
-        </p>
-        {confirmReset ? (
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <button className="btn btn-ghost"
-              style={{ flex: 1, color: 'var(--rojo)', borderColor: 'rgba(255,68,68,0.35)', fontWeight: '700' }}
-              onClick={resetearDatos} disabled={working}>
-              <Trash2 size={14} />
-              <span>Sí, borrar todo</span>
-            </button>
-            <button className="btn btn-secondary" style={{ flex: 1 }}
-              onClick={() => setConfirmReset(false)} disabled={working}>
-              Cancelar
-            </button>
-          </div>
-        ) : (
-          <button className="btn btn-ghost"
-            style={{ width: '100%', color: 'var(--rojo)', borderColor: 'rgba(255,68,68,0.2)' }}
-            onClick={() => setConfirmReset(true)} disabled={working}>
-            <Trash2 size={14} />
-            <span>Resetear todos los datos</span>
-          </button>
-        )}
-      </div>
 
       {/* Sin semana activa */}
       {!semana && (
@@ -384,44 +340,6 @@ export default function Admin() {
             </div>
           </div>
 
-          {/* Participantes */}
-          <div className="card" style={{ marginBottom: '16px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-              <Users size={16} color="var(--text2)" />
-              <h3 style={{ fontSize: '15px', fontWeight: '600' }}>Participantes</h3>
-              <span style={{ fontSize: '13px', color: 'var(--text3)', marginLeft: 'auto' }}>
-                {participantes.filter(p => p.pagado).length}/{participantes.length} pagados
-              </span>
-            </div>
-            {participantes.length === 0 ? (
-              <p style={{ color: 'var(--text2)', fontSize: '14px' }}>Nadie ha enviado predicciones aún</p>
-            ) : participantes.map((p, i) => (
-              <div key={p.id} style={{
-                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                padding: '10px 0',
-                borderBottom: i < participantes.length - 1 ? '1px solid var(--border)' : 'none',
-              }}>
-                <div>
-                  <p style={{ fontSize: '14px', fontWeight: '600' }}>{p.profiles?.username}</p>
-                  <p style={{ fontSize: '12px', color: 'var(--text3)' }}>{p.importe}€</p>
-                </div>
-                <button
-                  className={`btn ${p.pagado ? 'btn-secondary' : 'btn-ghost'}`}
-                  style={{
-                    padding: '6px 12px', fontSize: '12px',
-                    ...(p.pagado ? {} : { color: 'var(--amarillo)', borderColor: 'rgba(255,200,0,0.3)' }),
-                  }}
-                  onClick={() => togglePago(p.id, p.pagado)}
-                  disabled={working}
-                >
-                  {p.pagado
-                    ? <><Check size={12} strokeWidth={3} /><span>Pagado</span></>
-                    : <><Clock size={12} /><span>Pendiente</span></>}
-                </button>
-              </div>
-            ))}
-          </div>
-
           {/* Partidos */}
           <div className="card" style={{ marginBottom: '16px' }}>
             <h3 style={{ fontSize: '15px', fontWeight: '600', marginBottom: '16px' }}>
@@ -455,6 +373,38 @@ export default function Admin() {
                 </div>
               )
             })}
+          </div>
+
+          {/* Participantes y pagos */}
+          <div className="card" style={{ marginBottom: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+              <Users size={15} color="var(--text2)" />
+              <h3 style={{ fontSize: '15px', fontWeight: '600' }}>Participantes</h3>
+              <span style={{ marginLeft: 'auto', fontSize: '13px', color: 'var(--text3)' }}>
+                {participantes.filter(p => p.pagado).length}/{participantes.length} pagados
+              </span>
+            </div>
+            {participantes.length === 0 ? (
+              <p style={{ color: 'var(--text2)', fontSize: '14px' }}>Nadie ha enviado su apuesta aún</p>
+            ) : participantes.map((p, i) => (
+              <div key={p.id} style={{
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                padding: '10px 0',
+                borderBottom: i < participantes.length - 1 ? '1px solid var(--border)' : 'none',
+              }}>
+                <span style={{ fontSize: '14px', fontWeight: '500' }}>{p.profiles?.username}</span>
+                <button
+                  onClick={() => togglePago(p)}
+                  disabled={working}
+                  className={`btn ${p.pagado ? 'btn-secondary' : 'btn-primary'}`}
+                  style={{ padding: '6px 12px', fontSize: '12px', gap: '5px' }}
+                >
+                  {p.pagado
+                    ? <><X size={12} /><span>Quitar</span></>
+                    : <><Check size={12} /><span>Confirmar 5€</span></>}
+                </button>
+              </div>
+            ))}
           </div>
 
           {/* Siguiente semana */}
