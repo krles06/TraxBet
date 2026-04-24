@@ -271,7 +271,7 @@ export default function Admin() {
         <Settings size={18} color="var(--text2)" />
         <h1 style={{ fontSize: '22px', fontWeight: '700', letterSpacing: '-0.02em' }}>Admin</h1>
       </div>
-      <p style={{ color: 'var(--text2)', fontSize: '13px', marginBottom: '24px' }}>Panel de administración de la porra</p>
+      <p style={{ color: 'var(--text2)', fontSize: '13px', marginBottom: '24px' }}>Panel de administración de TraxallBets</p>
 
       {msg.text && (
         <div className={`alert ${msgClass}`} style={{ marginBottom: '16px' }}>

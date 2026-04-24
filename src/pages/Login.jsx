@@ -39,7 +39,7 @@ export default function Login() {
             <span style={{ fontSize: '26px', lineHeight: 1 }}>⚽</span>
           </div>
           <h1 style={{ fontSize: '26px', fontWeight: '700', marginBottom: '6px', letterSpacing: '-0.02em' }}>
-            Porra Fútbol
+            TraxallBets
           </h1>
           <p style={{ color: 'var(--text2)', fontSize: '14px' }}>
             Barça · Madrid — ¿Quién acierta el marcador?
