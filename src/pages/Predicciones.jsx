@@ -116,7 +116,13 @@ export default function Predicciones() {
         goles_visitante_prediccion: parseInt(pred.visitante),
       }, { onConflict: 'user_id,partido_id' })
 
-    if (!error) setGuardado(g => ({ ...g, [partido.id]: true }))
+    if (!error) {
+      setGuardado(g => ({ ...g, [partido.id]: true }))
+      await supabase.from('pagos').upsert(
+        { user_id: profile.id, semana_id: semana.id, pagado: false },
+        { onConflict: 'user_id,semana_id', ignoreDuplicates: true }
+      )
+    }
     setSaving(false)
   }
 
