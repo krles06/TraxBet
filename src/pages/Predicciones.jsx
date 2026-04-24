@@ -74,32 +74,19 @@ export default function Predicciones() {
     })
     if (!todasRellenas) return false
 
-    const { data: otras } = await supabase
-      .from('predicciones')
-      .select('user_id, partido_id, goles_local_prediccion, goles_visitante_prediccion')
-      .eq('semana_id', semana.id)
-      .neq('user_id', profile.id)
+    const prediccionesArray = partidos.map(p => ({
+      partido_id: p.id,
+      goles_local: parseInt(misPreds[p.id].local),
+      goles_visitante: parseInt(misPreds[p.id].visitante),
+    }))
 
-    if (!otras?.length) return false
-
-    const porUsuario = {}
-    otras.forEach(p => {
-      if (!porUsuario[p.user_id]) porUsuario[p.user_id] = {}
-      porUsuario[p.user_id][p.partido_id] = {
-        local: p.goles_local_prediccion,
-        visitante: p.goles_visitante_prediccion,
-      }
+    const { data } = await supabase.rpc('check_prediccion_duplicada', {
+      p_semana_id: semana.id,
+      p_user_id: profile.id,
+      p_predicciones: prediccionesArray,
     })
 
-    return Object.values(porUsuario).some(susPreds =>
-      partidos.every(p => {
-        const mia = misPreds[p.id]
-        const suya = susPreds[p.id]
-        return suya &&
-          parseInt(mia.local) === suya.local &&
-          parseInt(mia.visitante) === suya.visitante
-      })
-    )
+    return data === true
   }
 
   async function guardarPrediccion(partido) {
@@ -128,14 +115,7 @@ export default function Predicciones() {
         goles_visitante_prediccion: parseInt(pred.visitante),
       }, { onConflict: 'user_id,partido_id' })
 
-    if (!error) {
-      setGuardado(g => ({ ...g, [partido.id]: true }))
-      // Registrar participación en pagos (ignorar si ya existe para no resetear aprobación del admin)
-      await supabase.from('pagos').upsert(
-        { user_id: profile.id, semana_id: semana.id, importe: semana.bote_euros || 5 },
-        { onConflict: 'user_id,semana_id', ignoreDuplicates: true }
-      )
-    }
+    if (!error) setGuardado(g => ({ ...g, [partido.id]: true }))
     setSaving(false)
   }
 
