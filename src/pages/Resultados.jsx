@@ -52,12 +52,16 @@ export default function Resultados() {
       .order('fecha_partido')
     setPartidos(parts || [])
 
-    const finalizados = (parts || []).filter(p => p.estado === 'finalizado').map(p => p.id)
-    if (finalizados.length > 0) {
+    const semanaAbierta = semanaSeleccionada.estado === 'abierta'
+    const partidosParaPreds = semanaAbierta
+      ? (parts || []).filter(p => p.estado === 'finalizado').map(p => p.id)
+      : (parts || []).map(p => p.id)
+
+    if (partidosParaPreds.length > 0) {
       const { data: preds } = await supabase
         .from('predicciones')
         .select('*, profiles(username)')
-        .in('partido_id', finalizados)
+        .in('partido_id', partidosParaPreds)
       setPredicciones(preds || [])
     } else {
       setPredicciones([])
@@ -212,11 +216,13 @@ export default function Resultados() {
           {partidos.map(partido => {
             const preds = getPredsForPartido(partido.id)
             const finalizado = partido.estado === 'finalizado'
+            const semanaAbierta = semanaSeleccionada.estado === 'abierta'
+            const mostrarPreds = preds.length > 0 && (finalizado || !semanaAbierta)
             const fecha = format(new Date(partido.fecha_partido), "d MMM, HH:mm", { locale: es })
 
             return (
               <div key={partido.id} className="card" style={{ marginBottom: '16px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: finalizado && preds.length > 0 ? '16px' : '0' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: mostrarPreds ? '16px' : '0' }}>
                   <div>
                     <p style={{ fontSize: '15px', fontWeight: '700', marginBottom: '3px' }}>
                       {partido.equipo_local} vs {partido.equipo_visitante}
@@ -235,7 +241,7 @@ export default function Resultados() {
                   )}
                 </div>
 
-                {finalizado && preds.length > 0 && (
+                {mostrarPreds && (
                   <>
                     <div className="divider" style={{ marginBottom: '12px' }} />
                     <p style={{ fontSize: '11px', color: 'var(--text3)', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
@@ -275,9 +281,9 @@ export default function Resultados() {
                   </>
                 )}
 
-                {!finalizado && (
+                {!finalizado && semanaAbierta && (
                   <p style={{ fontSize: '13px', color: 'var(--text3)', textAlign: 'center', paddingTop: '12px' }}>
-                    Las predicciones se revelan cuando termine el partido
+                    Las predicciones se revelan al cerrar el plazo
                   </p>
                 )}
               </div>
