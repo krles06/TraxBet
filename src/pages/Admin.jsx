@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth.jsx'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { Settings, Plus, RefreshCw, Lock, Check, AlertCircle, AlertTriangle, Wallet } from 'lucide-react'
+import { Settings, Plus, RefreshCw, Lock, Check, AlertCircle, AlertTriangle, Wallet, Trash2 } from 'lucide-react'
 
 const FOOTBALL_API_KEY = import.meta.env.VITE_FOOTBALL_API_KEY
 const BARCA_ID = 81
@@ -49,6 +49,7 @@ export default function Admin() {
   const [working, setWorking] = useState(false)
   const [boteInput, setBoteInput] = useState('5')
   const [msg, setMsg] = useState({ text: '', type: 'ok' })
+  const [confirmReset, setConfirmReset] = useState(false)
 
   useEffect(() => {
     if (profile?.is_admin) loadData()
@@ -213,6 +214,23 @@ export default function Admin() {
     setWorking(false)
   }
 
+  async function resetearDatos() {
+    setWorking(true)
+    setConfirmReset(false)
+    try {
+      await supabase.from('predicciones').delete().not('id', 'is', null)
+      await supabase.from('pagos').delete().not('id', 'is', null)
+      await supabase.from('partidos').delete().not('id', 'is', null)
+      await supabase.from('semanas').delete().not('id', 'is', null)
+      setSemana(null)
+      setPartidos([])
+      showMsg('Datos borrados — empezamos desde cero')
+    } catch (e) {
+      showMsg('Error al borrar: ' + e.message, 'err')
+    }
+    setWorking(false)
+  }
+
   if (!profile?.is_admin) return (
     <div style={{ maxWidth: '480px', margin: '0 auto', padding: '80px 16px', textAlign: 'center' }}>
       <div style={{
@@ -246,6 +264,37 @@ export default function Admin() {
           <span>{msg.text}</span>
         </div>
       )}
+
+      {/* Zona peligrosa */}
+      <div className="card" style={{ marginBottom: '16px', borderColor: 'rgba(255,68,68,0.25)' }}>
+        <h3 style={{ fontSize: '15px', fontWeight: '600', marginBottom: '6px', color: 'var(--rojo)' }}>
+          Zona peligrosa
+        </h3>
+        <p style={{ fontSize: '13px', color: 'var(--text2)', marginBottom: '14px' }}>
+          Borra todas las semanas, partidos, predicciones y pagos. Los usuarios no se eliminan.
+        </p>
+        {confirmReset ? (
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button className="btn btn-ghost"
+              style={{ flex: 1, color: 'var(--rojo)', borderColor: 'rgba(255,68,68,0.35)', fontWeight: '700' }}
+              onClick={resetearDatos} disabled={working}>
+              <Trash2 size={14} />
+              <span>Sí, borrar todo</span>
+            </button>
+            <button className="btn btn-secondary" style={{ flex: 1 }}
+              onClick={() => setConfirmReset(false)} disabled={working}>
+              Cancelar
+            </button>
+          </div>
+        ) : (
+          <button className="btn btn-ghost"
+            style={{ width: '100%', color: 'var(--rojo)', borderColor: 'rgba(255,68,68,0.2)' }}
+            onClick={() => setConfirmReset(true)} disabled={working}>
+            <Trash2 size={14} />
+            <span>Resetear todos los datos</span>
+          </button>
+        )}
+      </div>
 
       {/* Sin semana activa */}
       {!semana && (
