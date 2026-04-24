@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth.jsx'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { BarChart2, Trophy, Circle, Inbox } from 'lucide-react'
+import { BarChart2, Trophy, Circle, Inbox, LayoutList, Users } from 'lucide-react'
 
 const EMOJIS = ['🔥', '😅', '💪', '😭']
 
@@ -15,6 +15,7 @@ export default function Resultados() {
   const [predicciones, setPredicciones] = useState([])
   const [reacciones, setReacciones] = useState([])
   const [miReaccion, setMiReaccion] = useState(null)
+  const [vista, setVista] = useState('partido') // 'partido' | 'usuario'
   const [loading, setLoading] = useState(true)
 
   useEffect(() => { loadSemanas() }, [])
@@ -102,6 +103,16 @@ export default function Resultados() {
 
   function countReaccion(emoji) {
     return reacciones.filter(r => r.emoji === emoji).length
+  }
+
+  // Agrupa predicciones por usuario para la vista "Por usuario"
+  function getUsuarios() {
+    const map = {}
+    predicciones.forEach(p => {
+      if (!map[p.user_id]) map[p.user_id] = { username: p.profiles?.username, user_id: p.user_id, preds: [] }
+      map[p.user_id].preds.push(p)
+    })
+    return Object.values(map).sort((a, b) => a.username?.localeCompare(b.username))
   }
 
   if (loading) return null
@@ -212,8 +223,83 @@ export default function Resultados() {
             </div>
           </div>
 
+          {/* Toggle de vista — solo visible cuando hay predicciones */}
+          {predicciones.length > 0 && (
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+              <button
+                onClick={() => setVista('partido')}
+                className={`btn ${vista === 'partido' ? 'btn-primary' : 'btn-ghost'}`}
+                style={{ flex: 1, fontSize: '13px', padding: '8px' }}
+              >
+                <LayoutList size={14} />
+                <span>Por partido</span>
+              </button>
+              <button
+                onClick={() => setVista('usuario')}
+                className={`btn ${vista === 'usuario' ? 'btn-primary' : 'btn-ghost'}`}
+                style={{ flex: 1, fontSize: '13px', padding: '8px' }}
+              >
+                <Users size={14} />
+                <span>Por usuario</span>
+              </button>
+            </div>
+          )}
+
+          {/* Vista por usuario */}
+          {vista === 'usuario' && getUsuarios().map(u => {
+            const esTuyo = u.user_id === profile?.id
+            return (
+              <div key={u.user_id} className="card" style={{
+                marginBottom: '12px',
+                border: esTuyo ? '1px solid rgba(0,200,83,0.3)' : undefined,
+              }}>
+                <p style={{ fontSize: '14px', fontWeight: '700', marginBottom: '12px' }}>
+                  {u.username}{esTuyo ? ' (tú)' : ''}
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {partidos.map(partido => {
+                    const pred = u.preds.find(p => p.partido_id === partido.id)
+                    const finalizado = partido.estado === 'finalizado'
+                    if (!pred) return null
+                    return (
+                      <div key={partido.id} style={{
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                        padding: '8px 10px', borderRadius: '8px',
+                        background: pred.es_correcto === true
+                          ? 'rgba(0,200,83,0.1)'
+                          : pred.es_correcto === false
+                          ? 'rgba(255,255,255,0.03)'
+                          : 'var(--bg3)',
+                        border: pred.es_correcto === true
+                          ? '1px solid rgba(0,200,83,0.25)'
+                          : '1px solid transparent',
+                      }}>
+                        <div>
+                          <p style={{ fontSize: '12px', color: 'var(--text2)', marginBottom: '2px' }}>
+                            {partido.equipo_local} vs {partido.equipo_visitante}
+                          </p>
+                          {finalizado && (
+                            <p style={{ fontSize: '11px', color: 'var(--text3)' }}>
+                              Final: {partido.goles_local}–{partido.goles_visitante}
+                            </p>
+                          )}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontFamily: 'var(--mono)', fontWeight: '700', fontSize: '16px' }}>
+                            {pred.goles_local_prediccion}–{pred.goles_visitante_prediccion}
+                          </span>
+                          {pred.es_correcto === true && <Trophy size={13} color="var(--amarillo)" />}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          })}
+
           {/* Partidos */}
-          {partidos.map(partido => {
+          {vista === 'partido' && partidos.map(partido => {
             const preds = getPredsForPartido(partido.id)
             const finalizado = partido.estado === 'finalizado'
             const semanaAbierta = semanaSeleccionada.estado === 'abierta'

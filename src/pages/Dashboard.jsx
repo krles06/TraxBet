@@ -48,7 +48,7 @@ export default function Dashboard() {
     const { data: sem } = await supabase
       .from('semanas')
       .select('*')
-      .eq('estado', 'abierta')
+      .in('estado', ['abierta', 'cerrada'])
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle()
@@ -173,7 +173,11 @@ export default function Dashboard() {
           Hola, {profile?.username}
         </h1>
         <p style={{ color: 'var(--text2)', marginTop: '4px', fontSize: '14px' }}>
-          {semana ? `Semana ${semana.numero} en juego` : 'Esperando nueva semana'}
+          {semana
+            ? semana.estado === 'cerrada'
+              ? `Semana ${semana.numero} · Plazo cerrado`
+              : `Semana ${semana.numero} en juego`
+            : 'Esperando nueva semana'}
         </p>
       </div>
 
