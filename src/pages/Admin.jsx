@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth.jsx'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { Settings, Plus, RefreshCw, Lock, Check, X, AlertCircle, AlertTriangle, Wallet, Users } from 'lucide-react'
+import { Settings, Plus, RefreshCw, Lock, Circle, Check, X, AlertCircle, AlertTriangle, Wallet, Users } from 'lucide-react'
 
 const FOOTBALL_API_KEY = import.meta.env.VITE_FOOTBALL_API_KEY
 const BARCA_ID = 81
@@ -224,11 +224,16 @@ export default function Admin() {
     setWorking(false)
   }
 
-  async function cerrarSemana() {
+  async function togglePlazo() {
     if (!semana) return
     setWorking(true)
-    await supabase.from('semanas').update({ estado: 'cerrada' }).eq('id', semana.id)
-    showMsg('Semana cerrada — ya no se aceptan predicciones')
+    if (semana.estado === 'abierta') {
+      await supabase.from('semanas').update({ estado: 'cerrada' }).eq('id', semana.id)
+      showMsg('Plazo cerrado — ya no se aceptan predicciones')
+    } else {
+      await supabase.from('semanas').update({ estado: 'abierta' }).eq('id', semana.id)
+      showMsg('Plazo reabierto — los jugadores pueden volver a editar sus predicciones')
+    }
     await loadData()
     setWorking(false)
   }
@@ -329,12 +334,17 @@ export default function Admin() {
                 <RefreshCw size={14} />
                 <span>Sync resultados</span>
               </button>
-              {semana.estado === 'abierta' && (
+              {semana.estado !== 'resuelta' && (
                 <button className="btn btn-ghost"
-                  style={{ flex: 1, color: 'var(--rojo)', borderColor: 'rgba(255,68,68,0.2)' }}
-                  onClick={cerrarSemana} disabled={working}>
-                  <Lock size={14} />
-                  <span>Cerrar semana</span>
+                  style={{
+                    flex: 1,
+                    color: semana.estado === 'abierta' ? 'var(--rojo)' : 'var(--verde)',
+                    borderColor: semana.estado === 'abierta' ? 'rgba(255,68,68,0.2)' : 'rgba(0,200,83,0.2)',
+                  }}
+                  onClick={togglePlazo} disabled={working}>
+                  {semana.estado === 'abierta'
+                    ? <><Lock size={14} /><span>Cerrar plazo</span></>
+                    : <><Circle size={14} /><span>Reabrir plazo</span></>}
                 </button>
               )}
             </div>
