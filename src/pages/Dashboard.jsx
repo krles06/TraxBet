@@ -209,16 +209,20 @@ export default function Dashboard() {
       )}
 
       {/* Participantes */}
-      {participantes.length > 0 && (
+      {semana && (
         <div className="card" style={{ marginBottom: '16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
             <Users size={16} color="var(--text2)" />
             <h3 style={{ fontSize: '15px', fontWeight: '600' }}>Participantes</h3>
-            <span style={{ fontSize: '13px', color: 'var(--text3)', marginLeft: 'auto' }}>
-              {participantes.filter(p => p.pagado).length}/{participantes.length} pagados
-            </span>
+            {participantes.length > 0 && (
+              <span style={{ fontSize: '13px', color: 'var(--text3)', marginLeft: 'auto' }}>
+                {participantes.filter(p => p.pagado).length}/{participantes.length} pagados
+              </span>
+            )}
           </div>
-          {participantes.map((p, i) => (
+          {participantes.length === 0 ? (
+            <p style={{ color: 'var(--text2)', fontSize: '14px' }}>Nadie ha enviado su apuesta aún</p>
+          ) : participantes.map((p, i) => (
             <div key={p.id} style={{
               display: 'flex', justifyContent: 'space-between', alignItems: 'center',
               padding: '10px 0',
