@@ -273,6 +273,7 @@ export default function Dashboard() {
             <p style={{ color: 'var(--text2)', fontSize: '14px' }}>Cargando partidos...</p>
           ) : partidos.map((partido, i) => {
             const pred = misPredicciones.find(p => p.partido_id === partido.id)
+            const enVivo = partido.estado === 'en_juego'
             const fechaStr = format(new Date(partido.fecha_partido), "EEE d MMM, HH:mm", { locale: es })
             return (
               <div key={partido.id} style={{
@@ -281,9 +282,17 @@ export default function Dashboard() {
                 display: 'flex', justifyContent: 'space-between', alignItems: 'center',
               }}>
                 <div>
-                  <p style={{ fontSize: '14px', fontWeight: '600', marginBottom: '3px' }}>
-                    {partido.equipo_local} vs {partido.equipo_visitante}
-                  </p>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '7px', marginBottom: '3px' }}>
+                    <p style={{ fontSize: '14px', fontWeight: '600' }}>
+                      {partido.equipo_local} vs {partido.equipo_visitante}
+                    </p>
+                    {enVivo && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <span className="live-dot" />
+                        <span style={{ fontSize: '10px', fontWeight: '700', color: 'var(--rojo)', letterSpacing: '0.04em' }}>EN VIVO</span>
+                      </div>
+                    )}
+                  </div>
                   <p style={{ fontSize: '12px', color: 'var(--text2)' }}>{fechaStr}</p>
                 </div>
                 {pred ? (

@@ -23,8 +23,11 @@ export default function Resultados() {
 
   useEffect(() => {
     const channel = supabase
-      .channel('resultados-partidos')
+      .channel('resultados-live')
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'partidos' }, () => {
+        if (semanaSeleccionada) loadDetalle()
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'predicciones' }, () => {
         if (semanaSeleccionada) loadDetalle()
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'semanas' }, () => loadSemanas())
@@ -302,12 +305,16 @@ export default function Resultados() {
           {vista === 'partido' && partidos.map(partido => {
             const preds = getPredsForPartido(partido.id)
             const finalizado = partido.estado === 'finalizado'
+            const enVivo = partido.estado === 'en_juego'
             const semanaAbierta = semanaSeleccionada.estado === 'abierta'
             const mostrarPreds = preds.length > 0 && (finalizado || !semanaAbierta)
             const fecha = format(new Date(partido.fecha_partido), "d MMM, HH:mm", { locale: es })
 
             return (
-              <div key={partido.id} className="card" style={{ marginBottom: '16px' }}>
+              <div key={partido.id} className="card" style={{
+                marginBottom: '16px',
+                border: enVivo ? '1px solid rgba(255,68,68,0.35)' : undefined,
+              }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: mostrarPreds ? '16px' : '0' }}>
                   <div>
                     <p style={{ fontSize: '15px', fontWeight: '700', marginBottom: '3px' }}>
@@ -321,6 +328,11 @@ export default function Resultados() {
                       <span style={{ fontFamily: 'var(--mono)', fontSize: '22px', fontWeight: '700', color: 'var(--verde)' }}>
                         {partido.goles_local} – {partido.goles_visitante}
                       </span>
+                    </div>
+                  ) : enVivo ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                      <span className="live-dot" />
+                      <span style={{ fontSize: '12px', fontWeight: '700', color: 'var(--rojo)', letterSpacing: '0.04em' }}>EN VIVO</span>
                     </div>
                   ) : (
                     <span className="badge badge-amarillo">Pendiente</span>
