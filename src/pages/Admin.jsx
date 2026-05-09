@@ -69,8 +69,11 @@ export default function Admin() {
       const { data: parts } = await supabase.from('partidos').select('*')
         .eq('semana_id', sem.id).order('fecha_partido')
       setPartidos(parts || [])
-      const { data: pagos } = await supabase.from('pagos')
-        .select('id, user_id, pagado, profiles(username)').eq('semana_id', sem.id).order('created_at')
+      const { data: pagos } = await supabase
+        .from('pagos')
+        .select('id, user_id, pagado, profiles(username)')
+        .eq('semana_id', sem.id)
+        .order('created_at')
       setParticipantes(pagos || [])
     }
     setLoading(false)
@@ -181,7 +184,8 @@ export default function Admin() {
     setWorking(true)
     const nuevoPagado = !pago.pagado
     await supabase.from('pagos').update({ pagado: nuevoPagado }).eq('id', pago.id)
-    const nuevoBote = Math.max(0, (semana.bote_euros || 0) + (nuevoPagado ? 5 : -5))
+    const delta = nuevoPagado ? 5 : -5
+    const nuevoBote = Math.max(0, (semana.bote_euros || 0) + delta)
     await supabase.from('semanas').update({ bote_euros: nuevoBote }).eq('id', semana.id)
     showMsg(nuevoPagado ? 'Pago confirmado (+5€ al bote)' : 'Pago retirado (-5€ del bote)')
     await loadData()
@@ -357,10 +361,13 @@ export default function Admin() {
                 <RefreshCw size={14} /><span>Sync resultados</span>
               </button>
               {semana.estado !== 'resuelta' && (
-                <button className="btn btn-ghost" disabled={working} onClick={togglePlazo}
-                  style={{ flex: 1,
+                <button className="btn btn-ghost"
+                  style={{
+                    flex: 1,
                     color: semana.estado === 'abierta' ? 'var(--rojo)' : 'var(--verde)',
-                    borderColor: semana.estado === 'abierta' ? 'rgba(255,68,68,0.2)' : 'rgba(0,200,83,0.2)' }}>
+                    borderColor: semana.estado === 'abierta' ? 'rgba(255,68,68,0.2)' : 'rgba(0,200,83,0.2)',
+                  }}
+                  onClick={togglePlazo} disabled={working}>
                   {semana.estado === 'abierta'
                     ? <><Lock size={14} /><span>Cerrar plazo</span></>
                     : <><Circle size={14} /><span>Reabrir plazo</span></>}
@@ -395,6 +402,7 @@ export default function Admin() {
             })}
           </div>
 
+          {/* Participantes y pagos */}
           <div className="card" style={{ marginBottom: '16px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
               <Users size={15} color="var(--text2)" />

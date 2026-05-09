@@ -221,3 +221,15 @@ input, button, select, textarea { font-family: var(--font); }
 @media (max-width: 640px) {
   .card { padding: 16px; }
 }
+
+/* ── Live pulse ──────────────────────────────────── */
+@keyframes pulse-live {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.4; transform: scale(1.4); }
+}
+.live-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--rojo);
+  animation: pulse-live 1.2s ease-in-out infinite;
+  display: inline-block; flex-shrink: 0;
+}

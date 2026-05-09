@@ -6,6 +6,7 @@ import Dashboard from './pages/Dashboard.jsx'
 import Predicciones from './pages/Predicciones.jsx'
 import Resultados from './pages/Resultados.jsx'
 import Perfil from './pages/Perfil.jsx'
+import Chat from './pages/Chat.jsx'
 import Admin from './pages/Admin.jsx'
 import Nav from './components/Nav.jsx'
 import Loading from './components/Loading.jsx'
@@ -31,6 +32,7 @@ function AppRoutes() {
           <Route path="/predicciones" element={<PrivateRoute><Predicciones /></PrivateRoute>} />
           <Route path="/resultados" element={<PrivateRoute><Resultados /></PrivateRoute>} />
           <Route path="/perfil" element={<PrivateRoute><Perfil /></PrivateRoute>} />
+          <Route path="/chat" element={<PrivateRoute><Chat /></PrivateRoute>} />
           <Route path="/admin" element={<PrivateRoute><Admin /></PrivateRoute>} />
         </Routes>
       </main>

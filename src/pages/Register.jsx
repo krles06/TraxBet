@@ -63,7 +63,7 @@ export default function Register() {
             <span style={{ fontSize: '26px', lineHeight: 1 }}>⚽</span>
           </div>
           <h1 style={{ fontSize: '26px', fontWeight: '700', marginBottom: '6px', letterSpacing: '-0.02em' }}>
-            Únete a la porra
+            Únete a TraxallBets
           </h1>
           <p style={{ color: 'var(--text2)', fontSize: '14px' }}>5€ por semana · gana el bote</p>
         </div>
