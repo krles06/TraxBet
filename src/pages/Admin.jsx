@@ -31,11 +31,14 @@ async function footballFetch(type) {
     if (!res.ok) throw new Error(json.error || `Proxy error ${res.status}`)
     data = json
   }
-  return (data.matches || []).filter(
-    m => (m.homeTeam.id === BARCA_ID || m.awayTeam.id === BARCA_ID ||
-          m.homeTeam.id === MADRID_ID || m.awayTeam.id === MADRID_ID) &&
-         (type === 'finished' || UPCOMING.includes(m.status))
-  )
+  const matches = data.matches || []
+  if (type === 'finished') {
+    return matches.filter(
+      m => m.homeTeam.id === BARCA_ID || m.awayTeam.id === BARCA_ID ||
+           m.homeTeam.id === MADRID_ID || m.awayTeam.id === MADRID_ID
+    )
+  }
+  return matches.filter(m => UPCOMING.includes(m.status))
 }
 
 async function fetchFinishedMatches() { return footballFetch('finished') }
@@ -91,14 +94,10 @@ export default function Admin() {
     try {
       const matches = await footballFetch('upcoming')
       if (matches.length === 0) {
-        showMsg('No hay partidos de Barça/Madrid en los próximos 21 días', 'warn')
+        showMsg('No hay partidos programados en los próximos 21 días', 'warn')
       } else {
-        const jornadaMin = Math.min(...matches.map(m => m.matchday).filter(Boolean))
-        const presel = new Set(jornadaMin
-          ? matches.filter(m => m.matchday === jornadaMin).map(m => m.id)
-          : matches.slice(0, 2).map(m => m.id))
         setMatchesDisponibles(matches)
-        setSeleccionados(presel)
+        setSeleccionados(new Set())
       }
     } catch (e) { showMsg('Error de API: ' + e.message, 'err') }
     setBuscando(false)
@@ -272,6 +271,7 @@ export default function Admin() {
                   const fecha = format(new Date(m.utcDate), "EEE d MMM, HH:mm", { locale: es })
                   const sel = seleccionados.has(m.id)
                   const esBarca = m.homeTeam.id === BARCA_ID || m.awayTeam.id === BARCA_ID
+                  const esMadrid = m.homeTeam.id === MADRID_ID || m.awayTeam.id === MADRID_ID
                   return (
                     <div key={m.id} onClick={() => toggleMatch(m.id)} style={{
                       display: 'flex', alignItems: 'center', gap: '12px',
@@ -292,10 +292,12 @@ export default function Admin() {
                         </p>
                         <p style={{ fontSize: '11px', color: 'var(--text2)' }}>{fecha}</p>
                       </div>
-                      <span className={`badge ${esBarca ? 'badge-azul' : 'badge-gris'}`}
-                        style={{ fontSize: '10px', flexShrink: 0 }}>
-                        {esBarca ? 'FCB' : 'RMA'}
-                      </span>
+                      {(esBarca || esMadrid) && (
+                        <span className={`badge ${esBarca ? 'badge-azul' : 'badge-gris'}`}
+                          style={{ fontSize: '10px', flexShrink: 0 }}>
+                          {esBarca ? 'FCB' : 'RMA'}
+                        </span>
+                      )}
                     </div>
                   )
                 })}

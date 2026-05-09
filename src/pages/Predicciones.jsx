@@ -203,8 +203,8 @@ export default function Predicciones() {
             <div style={{ marginBottom: '20px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
                 <div style={{ flex: 1 }}>
-                  <span className={`badge ${partido.es_barca ? 'badge-azul' : 'badge-gris'}`} style={{ marginBottom: '8px' }}>
-                    {partido.es_barca ? 'Barcelona' : 'Real Madrid'}
+                  <span className={`badge ${partido.es_barca ? 'badge-azul' : partido.es_madrid ? 'badge-gris' : 'badge-gris'}`} style={{ marginBottom: '8px' }}>
+                    {partido.es_barca ? 'Barcelona' : partido.es_madrid ? 'Real Madrid' : 'La Liga'}
                   </span>
                   <p style={{ fontSize: '16px', fontWeight: '700', marginBottom: '5px', lineHeight: 1.3 }}>
                     {partido.equipo_local} vs {partido.equipo_visitante}
