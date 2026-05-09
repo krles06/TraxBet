@@ -22,7 +22,7 @@ export default function Predicciones() {
     const { data: sem } = await supabase
       .from('semanas')
       .select('*')
-      .eq('estado', 'abierta')
+      .in('estado', ['abierta', 'cerrada'])
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle()
