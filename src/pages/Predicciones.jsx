@@ -134,8 +134,7 @@ export default function Predicciones() {
     ? new Date(new Date(primerPartido.fecha_partido).getTime() - 3 * 60 * 60 * 1000)
     : null
   const countdown = useCountdown(deadline)
-  const plazoVencido = countdown ? countdown.expired : partidos.length > 0
-
+  const plazoVencido = semana?.estado === 'cerrada'
   const partidoAbierto = (p) => !plazoVencido && p.estado === 'programado'
 
   if (loading) return null
