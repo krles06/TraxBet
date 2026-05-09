@@ -3,12 +3,13 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth.jsx'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { Settings, Plus, RefreshCw, Lock, Check, AlertCircle, AlertTriangle, Wallet } from 'lucide-react'
+import { Settings, Plus, RefreshCw, Lock, Check, AlertCircle, AlertTriangle, Wallet, Search, ChevronRight } from 'lucide-react'
 
 const FOOTBALL_API_KEY = import.meta.env.VITE_FOOTBALL_API_KEY
 const BARCA_ID = 81
 const MADRID_ID = 86
 const IS_DEV = import.meta.env.DEV
+const UPCOMING = ['SCHEDULED', 'TIMED', 'POSTPONED']
 
 async function footballFetch(type) {
   let data
@@ -17,7 +18,7 @@ async function footballFetch(type) {
     let url
     if (type === 'upcoming') {
       const in21days = new Date(today.getTime() + 21 * 24 * 60 * 60 * 1000)
-      url = `https://api.football-data.org/v4/competitions/PD/matches?dateFrom=${today.toISOString().split('T')[0]}&dateTo=${in21days.toISOString().split('T')[0]}&status=SCHEDULED`
+      url = `https://api.football-data.org/v4/competitions/PD/matches?dateFrom=${today.toISOString().split('T')[0]}&dateTo=${in21days.toISOString().split('T')[0]}`
     } else {
       url = `https://api.football-data.org/v4/competitions/PD/matches?status=FINISHED`
     }
@@ -30,7 +31,6 @@ async function footballFetch(type) {
     if (!res.ok) throw new Error(json.error || `Proxy error ${res.status}`)
     data = json
   }
-  const UPCOMING = ['SCHEDULED', 'TIMED', 'POSTPONED']
   return (data.matches || []).filter(
     m => (m.homeTeam.id === BARCA_ID || m.awayTeam.id === BARCA_ID ||
           m.homeTeam.id === MADRID_ID || m.awayTeam.id === MADRID_ID) &&
@@ -38,7 +38,6 @@ async function footballFetch(type) {
   )
 }
 
-async function fetchUpcomingMatches() { return footballFetch('upcoming') }
 async function fetchFinishedMatches() { return footballFetch('finished') }
 
 export default function Admin() {
@@ -49,6 +48,11 @@ export default function Admin() {
   const [working, setWorking] = useState(false)
   const [boteInput, setBoteInput] = useState('5')
   const [msg, setMsg] = useState({ text: '', type: 'ok' })
+
+  // Flujo selección de partidos
+  const [matchesDisponibles, setMatchesDisponibles] = useState(null) // null = no buscado aún
+  const [seleccionados, setSeleccionados] = useState(new Set())
+  const [buscando, setBuscando] = useState(false)
 
   useEffect(() => {
     if (profile?.is_admin) loadData()
@@ -79,24 +83,54 @@ export default function Admin() {
 
   function showMsg(text, type = 'ok') {
     setMsg({ text, type })
-    setTimeout(() => setMsg({ text: '', type: 'ok' }), 5000)
+    setTimeout(() => setMsg({ text: '', type: 'ok' }), 6000)
+  }
+
+  function resetSelector() {
+    setMatchesDisponibles(null)
+    setSeleccionados(new Set())
+  }
+
+  async function buscarPartidos() {
+    setBuscando(true)
+    try {
+      const matches = await footballFetch('upcoming')
+      if (matches.length === 0) {
+        showMsg('No hay partidos de Barça/Madrid en los próximos 21 días', 'warn')
+      } else {
+        // Preseleccionar la jornada más próxima
+        const jornadaMin = Math.min(...matches.map(m => m.matchday).filter(Boolean))
+        const presel = new Set(
+          jornadaMin
+            ? matches.filter(m => m.matchday === jornadaMin).map(m => m.id)
+            : matches.slice(0, 2).map(m => m.id)
+        )
+        setMatchesDisponibles(matches)
+        setSeleccionados(presel)
+      }
+    } catch (e) {
+      showMsg('Error de API: ' + e.message, 'err')
+    }
+    setBuscando(false)
+  }
+
+  function toggleMatch(id) {
+    setSeleccionados(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
   }
 
   async function crearSemana() {
+    const matches = (matchesDisponibles || []).filter(m => seleccionados.has(m.id))
+    if (matches.length === 0) {
+      showMsg('Selecciona al menos un partido', 'warn')
+      return
+    }
+
     setWorking(true)
     try {
-      const allMatches = await fetchUpcomingMatches()
-      if (allMatches.length === 0) {
-        showMsg('No hay partidos de Barça/Madrid en los próximos 21 días', 'warn')
-        setWorking(false)
-        return
-      }
-
-      const jornadaMinima = Math.min(...allMatches.map(m => m.matchday).filter(Boolean))
-      const matches = jornadaMinima
-        ? allMatches.filter(m => m.matchday === jornadaMinima)
-        : allMatches.slice(0, 2)
-
       const { data: lastSem } = await supabase
         .from('semanas').select('numero').order('numero', { ascending: false }).limit(1).maybeSingle()
 
@@ -134,11 +168,11 @@ export default function Admin() {
         })
       }
 
-      const jornada = matches[0]?.matchday ? ` (jornada ${matches[0].matchday})` : ''
-      showMsg(`Semana ${nextNumero} creada con ${matches.length} partido(s)${jornada}`)
+      showMsg(`Semana ${nextNumero} creada con ${matches.length} partido(s)`)
+      resetSelector()
       await loadData()
     } catch (e) {
-      showMsg('Error de API: ' + e.message, 'err')
+      showMsg('Error: ' + e.message, 'err')
     }
     setWorking(false)
   }
@@ -232,6 +266,128 @@ export default function Admin() {
   const msgClass = msg.type === 'err' ? 'alert-error' : msg.type === 'warn' ? 'alert-warn' : 'alert-success'
   const MsgIcon = msg.type === 'err' ? AlertCircle : msg.type === 'warn' ? AlertTriangle : Check
 
+  // Bloque de creación de semana (reutilizado para !semana y semana cerrada)
+  function SelectorNuevaSemana() {
+    // Agrupar por jornada
+    const porJornada = {}
+    ;(matchesDisponibles || []).forEach(m => {
+      const key = m.matchday || '?'
+      if (!porJornada[key]) porJornada[key] = []
+      porJornada[key].push(m)
+    })
+
+    return (
+      <div className="card" style={{ marginBottom: '16px' }}>
+        <h3 style={{ fontSize: '15px', fontWeight: '600', marginBottom: '8px' }}>
+          {semana ? 'Siguiente semana' : 'Nueva semana'}
+        </h3>
+
+        {/* Bote */}
+        <div style={{ marginBottom: '16px' }}>
+          <label className="label">Bote (€)</label>
+          <div style={{ position: 'relative' }}>
+            <Wallet size={15} style={{
+              position: 'absolute', left: '13px', top: '50%', transform: 'translateY(-50%)',
+              color: 'var(--text3)', pointerEvents: 'none',
+            }} />
+            <input className="input" type="number" value={boteInput}
+              onChange={e => setBoteInput(e.target.value)} min="0" step="1"
+              style={{ paddingLeft: '36px' }} />
+          </div>
+        </div>
+
+        {/* Paso 1: buscar */}
+        {!matchesDisponibles && (
+          <button className="btn btn-secondary" style={{ width: '100%' }}
+            onClick={buscarPartidos} disabled={buscando}>
+            <Search size={14} />
+            <span>{buscando ? 'Buscando partidos...' : 'Buscar partidos disponibles'}</span>
+          </button>
+        )}
+
+        {/* Paso 2: seleccionar */}
+        {matchesDisponibles && (
+          <>
+            <p style={{ fontSize: '12px', color: 'var(--text2)', marginBottom: '12px' }}>
+              {matchesDisponibles.length} partido(s) encontrado(s) — selecciona los que quieres incluir:
+            </p>
+
+            {Object.entries(porJornada)
+              .sort(([a], [b]) => Number(a) - Number(b))
+              .map(([jornada, ms]) => (
+                <div key={jornada} style={{ marginBottom: '12px' }}>
+                  <p style={{
+                    fontSize: '11px', fontWeight: '700', color: 'var(--text3)',
+                    textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '6px',
+                  }}>
+                    Jornada {jornada}
+                  </p>
+                  {ms.map(m => {
+                    const fecha = format(new Date(m.utcDate), "EEE d MMM, HH:mm", { locale: es })
+                    const sel = seleccionados.has(m.id)
+                    return (
+                      <div
+                        key={m.id}
+                        onClick={() => toggleMatch(m.id)}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: '12px',
+                          padding: '10px 12px', borderRadius: '8px', cursor: 'pointer',
+                          background: sel ? 'rgba(0,200,83,0.08)' : 'var(--bg3)',
+                          border: `1px solid ${sel ? 'rgba(0,200,83,0.3)' : 'var(--border)'}`,
+                          marginBottom: '6px',
+                          transition: 'all 0.15s',
+                        }}
+                      >
+                        <div style={{
+                          width: '18px', height: '18px', borderRadius: '4px', flexShrink: 0,
+                          background: sel ? 'var(--verde)' : 'var(--bg5)',
+                          border: `1.5px solid ${sel ? 'var(--verde)' : 'var(--border-strong)'}`,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          transition: 'all 0.15s',
+                        }}>
+                          {sel && <Check size={11} color="#000" strokeWidth={3} />}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <p style={{ fontSize: '13px', fontWeight: '600', marginBottom: '1px' }}>
+                            {m.homeTeam.shortName || m.homeTeam.name} vs {m.awayTeam.shortName || m.awayTeam.name}
+                          </p>
+                          <p style={{ fontSize: '11px', color: 'var(--text2)' }}>{fecha}</p>
+                        </div>
+                        <span className={`badge badge-${
+                          m.homeTeam.id === BARCA_ID || m.awayTeam.id === BARCA_ID ? 'azul' : 'gris'
+                        }`} style={{ fontSize: '10px', flexShrink: 0 }}>
+                          {m.homeTeam.id === BARCA_ID || m.awayTeam.id === BARCA_ID ? 'FCB' : 'RMA'}
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
+              ))}
+
+            <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+              <button className="btn btn-ghost" style={{ flex: 1, fontSize: '13px' }}
+                onClick={resetSelector} disabled={working}>
+                Cancelar
+              </button>
+              <button
+                className="btn btn-primary" style={{ flex: 2 }}
+                onClick={crearSemana}
+                disabled={working || seleccionados.size === 0}
+              >
+                <ChevronRight size={15} />
+                <span>
+                  {working
+                    ? 'Creando...'
+                    : `Crear con ${seleccionados.size} partido${seleccionados.size !== 1 ? 's' : ''}`}
+                </span>
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    )
+  }
+
   return (
     <div style={{ maxWidth: '480px', margin: '0 auto', padding: '24px 16px 100px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
@@ -248,30 +404,7 @@ export default function Admin() {
       )}
 
       {/* Sin semana activa */}
-      {!semana && (
-        <div className="card" style={{ marginBottom: '16px' }}>
-          <h3 style={{ fontSize: '15px', fontWeight: '600', marginBottom: '8px' }}>Nueva semana</h3>
-          <p style={{ fontSize: '13px', color: 'var(--text2)', marginBottom: '16px' }}>
-            Se cargarán los próximos partidos de Barça y Madrid (próximos 21 días).
-          </p>
-          <div style={{ marginBottom: '16px' }}>
-            <label className="label">Bote inicial (€)</label>
-            <div style={{ position: 'relative' }}>
-              <Wallet size={15} style={{
-                position: 'absolute', left: '13px', top: '50%', transform: 'translateY(-50%)',
-                color: 'var(--text3)', pointerEvents: 'none',
-              }} />
-              <input className="input" type="number" value={boteInput}
-                onChange={e => setBoteInput(e.target.value)} min="0" step="1"
-                style={{ paddingLeft: '36px' }} />
-            </div>
-          </div>
-          <button className="btn btn-primary" style={{ width: '100%' }} onClick={crearSemana} disabled={working}>
-            <Plus size={15} />
-            <span>{working ? 'Cargando partidos...' : 'Nueva semana y cargar partidos'}</span>
-          </button>
-        </div>
-      )}
+      {!semana && <SelectorNuevaSemana />}
 
       {/* Semana activa o cerrada */}
       {semana && (
@@ -320,7 +453,7 @@ export default function Admin() {
             </div>
           </div>
 
-          {/* Partidos */}
+          {/* Partidos de la semana actual */}
           <div className="card" style={{ marginBottom: '16px' }}>
             <h3 style={{ fontSize: '15px', fontWeight: '600', marginBottom: '16px' }}>
               Partidos ({partidos.length})
@@ -355,31 +488,8 @@ export default function Admin() {
             })}
           </div>
 
-          {/* Siguiente semana */}
-          {semana.estado === 'cerrada' && (
-            <div className="card">
-              <h3 style={{ fontSize: '15px', fontWeight: '600', marginBottom: '8px' }}>Siguiente semana</h3>
-              <p style={{ fontSize: '13px', color: 'var(--text2)', marginBottom: '16px' }}>
-                La semana actual está cerrada. Crea la siguiente.
-              </p>
-              <div style={{ marginBottom: '16px' }}>
-                <label className="label">Bote (€)</label>
-                <div style={{ position: 'relative' }}>
-                  <Wallet size={15} style={{
-                    position: 'absolute', left: '13px', top: '50%', transform: 'translateY(-50%)',
-                    color: 'var(--text3)', pointerEvents: 'none',
-                  }} />
-                  <input className="input" type="number" value={boteInput}
-                    onChange={e => setBoteInput(e.target.value)} min="0" step="1"
-                    style={{ paddingLeft: '36px' }} />
-                </div>
-              </div>
-              <button className="btn btn-primary" style={{ width: '100%' }} onClick={crearSemana} disabled={working}>
-                <Plus size={15} />
-                <span>{working ? 'Cargando...' : 'Nueva semana y cargar partidos'}</span>
-              </button>
-            </div>
-          )}
+          {/* Crear siguiente semana si la actual está cerrada */}
+          {semana.estado === 'cerrada' && <SelectorNuevaSemana />}
         </>
       )}
     </div>
